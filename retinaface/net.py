@@ -81,7 +81,7 @@ class FPN(nn.Module):
         self.merge1 = conv_bn(out_channels, out_channels, leaky=leaky)
         self.merge2 = conv_bn(out_channels, out_channels, leaky=leaky)
 
-    def forward(self, x: torch.tensor) -> List[torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         x = list(x.values())
 
         output1 = self.output1(x[0])
