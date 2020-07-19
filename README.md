@@ -2,18 +2,18 @@
 
 This repo is build on top of [https://github.com/biubug6/Pytorch_Retinaface](https://github.com/biubug6/Pytorch_Retinaface)
 
-## Differences:
+## Differences
 
 ### Train loop moved to [Pytorch Lightning](https://github.com/PyTorchLightning/pytorch-lightning)
 
 IT added a set of functionality:
 
-* Distributed training
-* fp16
-* Syncronized BatchNorm
-* Support for various loggers like [W&B](https://www.wandb.com/) or [Neptune.ml](https://neptune.ai/)
+ * Distributed training
+ * fp16
+ * Syncronized BatchNorm
+ * Support for various loggers like [W&B](https://www.wandb.com/) or [Neptune.ml](https://neptune.ai/)
 
-### Hyperparameters are fedined in config file.
+### Hyperparameters are fedined in config file
 
 Hyperparameters that were scattered  across the code moved to the config at [retinadace/config](retinadace/config)
 
@@ -27,7 +27,7 @@ Todo:
 
 Color transforms are defined in the config.
 
-### Added mAP calculation for validation.
+### Added mAP calculation for validation
 In order to track thr progress, mAP metric is calculated on validation.
 
 ## Training
