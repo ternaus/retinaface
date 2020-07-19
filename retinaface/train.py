@@ -88,9 +88,8 @@ class RetinaFace(pl.LightningModule):
         )
 
         scheduler = object_from_dict(self.hparams["scheduler"], optimizer=optimizer)
-        self.optimizers = [optimizer]
 
-        return self.optimizers, [scheduler]
+        return [optimizer], [scheduler]
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         images = batch["image"]

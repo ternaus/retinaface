@@ -99,7 +99,7 @@ class MultiBoxLoss(nn.Module):
                 box_index,
             )
 
-        zeros = torch.tensor(0)
+        zeros = torch.tensor()
         # landmark Loss (Smooth L1)
         # Shape: [batch, num_priors, 10]
         positive_1 = conf_t > zeros
