@@ -1,6 +1,6 @@
 # Retinaface
 
-This repo is build on top of https://github.com/biubug6/Pytorch_Retinaface
+This repo is build on top of [https://github.com/biubug6/Pytorch_Retinaface](https://github.com/biubug6/Pytorch_Retinaface)
 
 ## Differences:
 
