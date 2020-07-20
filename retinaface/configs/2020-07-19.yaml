@@ -35,7 +35,7 @@ trainer:
   gpus: 4
   use_amp: True
   amp_level: O1
-  max_epochs: 10
+  max_epochs: 150
   distributed_backend: ddp
   num_sanity_val_steps: 1
   progress_bar_refresh_rate: 1
@@ -52,7 +52,7 @@ train_parameters:
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
-  filepath: "2020-06-17"
+  filepath: "2020-07-19"
   monitor: val_loss
   verbose: True
   mode: max
@@ -153,10 +153,6 @@ test_aug:
     keypoint_params: null
     p: 1
     transforms:
-      - __class_fullname__: albumentations.augmentations.transforms.Resize
-        height: 840
-        width: 840
-        p: 1
       - __class_fullname__: albumentations.augmentations.transforms.Normalize
         always_apply: false
         max_pixel_value: 255.0
