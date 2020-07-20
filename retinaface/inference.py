@@ -210,7 +210,7 @@ class InferenceModel(pl.LightningModule):
 
                     colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
                     for i, (x, y) in enumerate(landms):
-                        vis_image = cv2.circle(vis_image, (x, y), radius=5, color=colors[i], thickness=5)
+                        vis_image = cv2.circle(vis_image, (x, y), radius=3, color=colors[i], thickness=3)
 
                     x_min, y_min, x_max, y_max = bbox.cpu().numpy()
 
@@ -218,7 +218,7 @@ class InferenceModel(pl.LightningModule):
                     y_min = np.clip(y_min, 0, y_max - 1)
 
                     vis_image = cv2.rectangle(
-                        vis_image, (x_min, y_min), (x_max, y_max), color=(255, 0, 0), thickness=3
+                        vis_image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2
                     )
 
                     cv2.imwrite(
@@ -261,7 +261,6 @@ if __name__ == "__main__":
             "confidence_threshold": args.confidence_threshold,
             "nms_threshold": args.nms_threshold,
             "keep_top_k": args.keep_top_k,
-            "num_workers": 0,
         }
     )
     hparams["trainer"]["gpus"] = 1  # Right now we work only with one GPU

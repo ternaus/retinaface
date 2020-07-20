@@ -1,5 +1,7 @@
 # Retinaface
 
+![https://habrastorage.org/webt/uj/ff/vx/ujffvxxpzixwlmae8gyh7jylftq.jpeg](https://habrastorage.org/webt/uj/ff/vx/ujffvxxpzixwlmae8gyh7jylftq.jpeg)
+
 This repo is build on top of [https://github.com/biubug6/Pytorch_Retinaface](https://github.com/biubug6/Pytorch_Retinaface)
 
 ## Differences
@@ -29,6 +31,45 @@ Color transforms are defined in the config.
 
 ### Added mAP calculation for validation
 In order to track thr progress, mAP metric is calculated on validation.
+
+## Data Preparation
+
+The pipeline expects labels in the format:
+
+```
+[
+  {
+    "file_name": "0--Parade/0_Parade_marchingband_1_849.jpg",
+    "annotations": [
+      {
+        "x_min": 449,
+        "y_min": 330,
+        "width": 122,
+        "height": 149,
+        "landmarks": [
+          488.906,1
+          373.643,
+          0.0,
+          542.089,
+          376.442,
+          0.0,
+          515.031,
+          412.83,
+          0.0,
+          485.174,
+          425.893,
+          0.0,
+          538.357,
+          431.491,
+          0.0,
+          0.82
+        ]
+      }
+    ]
+  },
+```
+
+
 
 ## Training
 
