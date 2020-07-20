@@ -12,7 +12,7 @@ def point_form(boxes: torch.Tensor) -> torch.Tensor:
     Return:
         boxes: Converted x_min, y_min, x_max, y_max form of boxes.
     """
-    return torch.cat((boxes[:, :2] - boxes[:, 2:] / 2, boxes[:, :2] + boxes[:, 2:] / 2), 1)
+    return torch.cat((boxes[:, :2] - boxes[:, 2:] / 2, boxes[:, :2] + boxes[:, 2:] / 2), dim=1)
 
 
 def center_size(boxes: torch.Tensor) -> torch.Tensor:
@@ -22,7 +22,7 @@ def center_size(boxes: torch.Tensor) -> torch.Tensor:
     Return:
         boxes: Converted x_min, y_min, x_max, y_max form of boxes.
     """
-    return torch.cat((boxes[:, 2:] + boxes[:, :2]) / 2, boxes[:, 2:] - boxes[:, :2], 1)
+    return torch.cat(((boxes[:, 2:] + boxes[:, :2]) / 2, boxes[:, 2:] - boxes[:, :2]), dim=1)
 
 
 def intersect(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:

@@ -89,7 +89,8 @@ class RetinaFace(pl.LightningModule):
 
         scheduler = object_from_dict(self.hparams["scheduler"], optimizer=optimizer)
 
-        return [optimizer], [scheduler]
+        self.optimizers = [optimizer]
+        return self.optimizers, [scheduler]
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         images = batch["image"]
@@ -125,7 +126,7 @@ class RetinaFace(pl.LightningModule):
             }
         )
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> OrderedDict[str, Any]:
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         images = batch["image"]
 
         image_height = images.shape[2]
@@ -144,7 +145,7 @@ class RetinaFace(pl.LightningModule):
 
         predictions_coco: List[Dict[str, Any]] = []
 
-        scale = torch.Tensor([image_width, image_height, image_width, image_height]).to(location.device)
+        scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(location.device)
 
         for batch_id in range(batch_size):
             boxes = decode(
@@ -224,7 +225,7 @@ class RetinaFace(pl.LightningModule):
 
     def _get_current_lr(self) -> torch.Tensor:
         lr = [x["lr"] for x in self.optimizers[0].param_groups][0]
-        return torch.Tensor([lr])[0].cuda()
+        return torch.from_numpy(np.array([lr]))[0].to(self.device)
 
 
 def main():

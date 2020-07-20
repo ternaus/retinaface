@@ -77,9 +77,9 @@ class MultiBoxLoss(nn.Module):
         num_priors = priors.size(0)
 
         # match priors (default boxes) and ground truth boxes
-        boxes_t = torch.Tensor(num_predicted_boxes, num_priors, 4).to(targets[0].device)
-        landmarks_t = torch.Tensor(num_predicted_boxes, num_priors, 10).to(targets[0].device)
-        conf_t = torch.LongTensor(num_predicted_boxes, num_priors).to(targets[0].device)
+        boxes_t = torch.zeros(num_predicted_boxes, num_priors, 4).to(targets[0].device)
+        landmarks_t = torch.zeros(num_predicted_boxes, num_priors, 10).to(targets[0].device)
+        conf_t = torch.zeros(num_predicted_boxes, num_priors).to(targets[0].device).long()
 
         for box_index in range(num_predicted_boxes):
             box_gt = targets[box_index][:, :4].data
@@ -99,10 +99,9 @@ class MultiBoxLoss(nn.Module):
                 box_index,
             )
 
-        zeros = torch.tensor()
         # landmark Loss (Smooth L1)
         # Shape: [batch, num_priors, 10]
-        positive_1 = conf_t > zeros
+        positive_1 = conf_t > torch.zeros_like(conf_t)
         num_positive_landmarks = positive_1.long().sum(1, keepdim=True)
         N1 = max(num_positive_landmarks.data.sum().float(), 1)
         pos_idx1 = positive_1.unsqueeze(positive_1.dim()).expand_as(landmark_data)
@@ -110,7 +109,7 @@ class MultiBoxLoss(nn.Module):
         landmarks_t = landmarks_t[pos_idx1].view(-1, 10)
         loss_landm = F.smooth_l1_loss(landmarks_p, landmarks_t, reduction="sum")
 
-        positive = conf_t != zeros
+        positive = conf_t != torch.zeros_like(conf_t)
         conf_t[positive] = 1
 
         # Localization Loss (Smooth L1)

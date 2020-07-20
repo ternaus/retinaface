@@ -202,25 +202,8 @@ def main():
 
             image_height, image_width = torched_images.shape[2:]
 
-            scale1 = torch.Tensor(
-                [
-                    image_width,
-                    image_height,
-                    image_width,
-                    image_height,
-                    image_width,
-                    image_height,
-                    image_width,
-                    image_height,
-                    image_width,
-                    image_height,
-                ]
-            )
-
-            scale1 = scale1.to(device)
-
-            scale = torch.Tensor([image_width, image_height, image_width, image_height])
-            scale = scale.to(device)
+            scale1 = torch.from_numpy(np.tile([image_width, image_height], 5)).to(device)
+            scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(device)
 
             priors = object_from_dict(hparams["prior_box"], image_size=(image_height, image_width)).to(loc.device)
 

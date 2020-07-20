@@ -1,9 +1,8 @@
-from typing import List
+from typing import List, Dict
 
 import torch
 import torch.nn.functional as F
 from torch import nn
-from collections import OrderedDict
 
 
 def conv_bn(inp: int, oup: int, stride: int = 1, leaky: float = 0) -> nn.Sequential:
@@ -82,7 +81,7 @@ class FPN(nn.Module):
         self.merge1 = conv_bn(out_channels, out_channels, leaky=leaky)
         self.merge2 = conv_bn(out_channels, out_channels, leaky=leaky)
 
-    def forward(self, x: OrderedDict[str, torch.Tensor]) -> List[torch.Tensor]:
+    def forward(self, x: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
         y = list(x.values())
 
         output1 = self.output1(y[0])
