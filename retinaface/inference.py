@@ -163,7 +163,7 @@ class InferenceModel(pl.LightningModule):
 
         for batch_id in range(batch_size):
             image_path = image_paths[batch_id]
-            file_id = Path(image_path).stem
+            file_id = Path(str(image_path)).stem
             raw_image = raw_images[batch_id]
 
             resize = resizes[batch_id].float()
