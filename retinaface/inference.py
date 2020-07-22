@@ -8,10 +8,12 @@ Takes a folder with images as input and returns a list of jsons:
 [
     {
         "file_name": <img_file_name>,
-        "bbox": [x_min, y_min, x_max, y_max],
-        "confidence": float,
-        "landmarks": [[x0, y0], [x1, y1] ... [x4, y4]]
-        "embedding": List[float]
+        "annotations": [
+                            {
+                                "bbox": [int, int, int, int],
+                                "confidence": float,
+                                "landmarks":  [[x0, y0], [x1, y1] ... [x4, y4]]
+                            }
     }
 ]
 
@@ -31,7 +33,7 @@ import torch.nn.functional as F
 import yaml
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
-from iglovikov_helper_functions.utils.image_utils import load_rgb
+from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size, load_rgb
 from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.ops import nms
@@ -48,10 +50,7 @@ def get_args():
     arg("-o", "--output_path", type=Path, help="Path to save jsons.", required=True)
     arg("-v", "--visualize", action="store_true", help="Visualize predictions")
     arg("-g", "--num_gpus", type=int, help="The number of GPUs to use.")
-
-    arg("-t", "--target_size", type=int, help="Target size", default=1600)
-    arg("-m", "--max_size", type=int, help="Target size", default=2150)
-    arg("--origin_size", action="store_true", help="Whether use origin image size to evaluate")
+    arg("-m", "--max_size", type=int, help="Resize the largest side to this number", default=960)
     arg("--confidence_threshold", default=0.7, type=float, help="confidence_threshold")
     arg("--nms_threshold", default=0.4, type=float, help="nms_threshold")
     arg("-w", "--weight_path", type=str, help="Path to weights.")
@@ -60,45 +59,48 @@ def get_args():
 
 
 class InferenceDataset(Dataset):
-    def __init__(
-        self, file_paths: List[Path], origin_size: int, target_size: int, max_size: int, transform: albu.Compose
-    ) -> None:
+    def __init__(self, file_paths: List[Path], max_size: int, transform: albu.Compose) -> None:
         self.file_paths = file_paths
         self.transform = transform
-        self.origin_size = origin_size
-        self.target_size = target_size
         self.max_size = max_size
+        self.resize = albu.LongestMaxSize(max_size=max_size, p=1)
 
     def __len__(self) -> int:
         return len(self.file_paths)
 
     def __getitem__(self, idx):
         image_path = self.file_paths[idx]
-        raw_image = load_rgb(image_path, lib="cv2")
-        image = raw_image.astype(np.float32)
+        image = load_rgb(image_path, lib="cv2")
+        image_height, image_width = image.shape[:2]
 
-        if self.origin_size:
-            resize = 1
-        else:
-            # testing scale
-            im_shape = image.shape
-            image_size_min = np.min(im_shape[:2])
-            image_size_max = np.max(im_shape[:2])
-            resize = float(self.target_size) / float(image_size_min)
-            # prevent bigger axis from being more than max_size:
-            if np.round(resize * image_size_max) > self.max_size:
-                resize = float(self.max_size) / float(image_size_max)
+        image = self.resize(image=image)["image"]
 
-            image = cv2.resize(image, None, None, fx=resize, fy=resize, interpolation=cv2.INTER_LINEAR)
+        paded = pad_to_size(target_size=(self.max_size, self.max_size), image=image)
+
+        image = paded["image"]
+        pads = paded["pads"]
 
         image = self.transform(image=image)["image"]
 
         return {
             "torched_image": tensor_from_rgb_image(image),
-            "resize": resize,
-            "raw_image": raw_image,
             "image_path": str(image_path),
+            "pads": torch.from_numpy(np.array(pads)),
+            "image_height": image_height,
+            "image_width": image_width,
         }
+
+
+def unnormalize(image):
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    for c in range(image.shape[-1]):
+        image[:, :, c] *= std[c]
+        image[:, :, c] += mean[c]
+        image[:, :, c] *= 255
+
+    return image
 
 
 class InferenceModel(pl.LightningModule):
@@ -112,8 +114,6 @@ class InferenceModel(pl.LightningModule):
         self.model.load_state_dict(checkpoint["state_dict"])
 
     def setup(self, stage: int = 0) -> None:
-        print(self.hparams.keys())
-        print("output_path" in self.hparams)
         self.output_vis_path = Path(self.hparams["output_path"]) / "viz"
 
         if self.hparams["visualize"]:
@@ -129,8 +129,6 @@ class InferenceModel(pl.LightningModule):
         return DataLoader(
             InferenceDataset(
                 self.hparams["file_paths"],
-                origin_size=self.hparams["origin_size"],
-                target_size=self.hparams["target_size"],
                 max_size=self.hparams["max_size"],
                 transform=from_dict(self.hparams["test_aug"]),
             ),
@@ -142,10 +140,11 @@ class InferenceModel(pl.LightningModule):
         )
 
     def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
-        torched_images = batch["torched_image"]
-        resizes = batch["resize"]
+        torched_images = batch["torched_image"]  # images that are rescaled and padded
+        pads = batch["pads"]
         image_paths = batch["image_path"]
-        raw_images = batch["raw_image"]
+        image_heights = batch["image_height"]
+        image_widths = batch["image_width"]
 
         labels: List[Dict[str, Any]] = []
 
@@ -156,25 +155,23 @@ class InferenceModel(pl.LightningModule):
 
         image_height, image_width = torched_images.shape[2:]
 
-        scale1 = torch.from_numpy(np.tile([image_width, image_height], 5)).to(self.device)
-        scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(self.device)
+        scale_bboxes = torch.from_numpy(np.tile([image_width, image_height], 5)).to(self.device)
+        scale_landmarks = torch.from_numpy(np.tile([image_width, image_height], 2)).to(self.device)
 
         priors = object_from_dict(hparams["prior_box"], image_size=(image_height, image_width)).to(loc.device)
 
         for batch_id in range(batch_size):
             image_path = image_paths[batch_id]
             file_id = Path(str(image_path)).stem
-            raw_image = raw_images[batch_id]
 
-            resize = resizes[batch_id].float()
-
+            # resize = max(raw_image.shape[:2]) / self.hparams["max_size"]
             boxes = decode(loc.data[batch_id], priors, hparams["test_parameters"]["variance"])
-
-            boxes *= scale / resize
+            boxes *= scale_landmarks
             scores = conf[batch_id][:, 1]
-
+            # boxes *= scale_landmarks / resize
             landmarks = decode_landm(land.data[batch_id], priors, hparams["test_parameters"]["variance"])
-            landmarks *= scale1 / resize
+            # landmarks *= scale_bboxes / resize
+            landmarks *= scale_bboxes
 
             # ignore low scores
             valid_index = torch.where(scores > self.hparams["confidence_threshold"])[0]
@@ -198,21 +195,39 @@ class InferenceModel(pl.LightningModule):
             landmarks = landmarks[keep].int()
             scores = scores[keep].cpu().numpy().astype(np.float64)
 
-            boxes = boxes[: self.hparams["keep_top_k"]]
-            landmarks = landmarks[: self.hparams["keep_top_k"]]
+            boxes = boxes[: self.hparams["keep_top_k"]].cpu().numpy()
+            landmarks = landmarks[: self.hparams["keep_top_k"]].cpu().numpy().reshape([-1, 2])
             scores = scores[: self.hparams["keep_top_k"]]
 
+            # Now we need to unpad
+            normalized_image = np.transpose(torched_images[batch_id].cpu().numpy(), (1, 2, 0))
+            image = unnormalize(normalized_image)
+
+            unpadded = unpad_from_size(pads[batch_id].cpu().numpy(), image=image, bboxes=boxes, keypoints=landmarks)
+
+            original_image_height = image_heights[batch_id].item()
+            original_image_width = image_widths[batch_id].item()
+
+            image = unpadded["image"]
+            image = cv2.resize(image.astype(np.uint8), (original_image_width, original_image_height))
+
+            resize_coeff = max(original_image_height, original_image_width) / torched_images.shape[-1]
+
+            boxes = (unpadded["bboxes"] * resize_coeff).astype(int)
+            landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff).astype(int)
+
             if self.hparams["visualize"]:
-                vis_image = raw_image.cpu().numpy().copy()
+                vis_image = image.copy()
 
                 for crop_id, bbox in enumerate(boxes):
-                    landms = landmarks[crop_id].cpu().numpy().reshape([5, 2])
+                    landms = landmarks[crop_id].reshape(-1, 2)
 
                     colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
+
                     for i, (x, y) in enumerate(landms):
                         vis_image = cv2.circle(vis_image, (x, y), radius=3, color=colors[i], thickness=3)
 
-                    x_min, y_min, x_max, y_max = bbox.cpu().numpy()
+                    x_min, y_min, x_max, y_max = bbox
 
                     x_min = np.clip(x_min, 0, x_max - 1)
                     y_min = np.clip(y_min, 0, y_max - 1)
@@ -226,8 +241,6 @@ class InferenceModel(pl.LightningModule):
                     )
 
             for crop_id, bbox in enumerate(boxes):
-                bbox = bbox.cpu().numpy()
-
                 labels += [
                     {
                         "crop_id": crop_id,
@@ -255,12 +268,11 @@ if __name__ == "__main__":
             "json_path": args.output_path,
             "output_path": args.output_path,
             "visualize": args.visualize,
-            "origin_size": args.origin_size,
             "max_size": args.max_size,
-            "target_size": args.target_size,
             "confidence_threshold": args.confidence_threshold,
             "nms_threshold": args.nms_threshold,
             "keep_top_k": args.keep_top_k,
+            "num_workers": 12,
         }
     )
     hparams["trainer"]["gpus"] = 1  # Right now we work only with one GPU

@@ -19,6 +19,7 @@ from torchvision.ops import nms
 from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
+from retinaface.utils import load_checkpoint
 
 
 def get_args():
@@ -33,8 +34,15 @@ class RetinaFace(pl.LightningModule):
         super().__init__()
 
         self.hparams = hparams
-
         self.model = object_from_dict(self.hparams["model"])
+        corrections: Dict[str, str] = {"model.": ""}
+
+        checkpoint = load_checkpoint(file_path=self.hparams["weights"], rename_in_layers=corrections)
+        # self.model.load_state_dict(checkpoint["state_dict"], pior_box=object_from_dict(self.hparams["prior_box"],
+        #                                                                                image_size=self.hparams[
+        #                                                                                    "image_size"]))
+
+        self.model.load_state_dict(checkpoint["state_dict"])
 
         if hparams["sync_bn"]:
             self.model = apex.parallel.convert_syncbn_model(self.model)
@@ -57,6 +65,7 @@ class RetinaFace(pl.LightningModule):
                 image_path=self.hparams["train_image_path"],
                 transform=from_dict(self.hparams["train_aug"]),
                 preproc=self.preproc,
+                rotate90=self.hparams["train_parameters"]["rotate90"],
             ),
             batch_size=self.hparams["train_parameters"]["batch_size"],
             num_workers=self.hparams["num_workers"],
@@ -73,6 +82,7 @@ class RetinaFace(pl.LightningModule):
                 image_path=self.hparams["val_image_path"],
                 transform=from_dict(self.hparams["val_aug"]),
                 preproc=self.preproc,
+                rotate90=self.hparams["train_parameters"]["rotate90"],
             ),
             batch_size=self.hparams["val_parameters"]["batch_size"],
             num_workers=self.hparams["num_workers"],

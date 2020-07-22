@@ -4,13 +4,15 @@ seed: 1984
 sync_bn: True
 
 num_workers: 12
-experiment_name: "2020-07-19"
+experiment_name: "2020-07-20"
 
 train_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_train/images
 val_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_val/images
 
 train_annotation_path: /home/vladimir/workspace/data3/WiderFace/train/label.json
 val_annotation_path: /home/vladimir/workspace/data3/WiderFace/val/label.json
+
+weights: 2020-07-19/epoch=149.ckpt
 
 num_classes: 2
 
@@ -26,7 +28,7 @@ model:
 optimizer:
   type: torch.optim.SGD
   lr: 0.001
-  weight_decay: 0.0005
+  weight_decay: 0.0001
   momentum: 0.9
 
 trainer:
@@ -49,11 +51,11 @@ scheduler:
 
 train_parameters:
   batch_size: 8
-  rotate90: False
+  rotate90: True
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
-  filepath: "2020-07-19"
+  filepath: "2020-07-20"
   monitor: val_loss
   verbose: True
   mode: max
@@ -62,7 +64,7 @@ checkpoint_callback:
 val_parameters:
   batch_size: 10
   iou_threshold: 0.4
-  rotate90: False
+  rotate90: True
 
 loss:
   type: retinaface.multibox_loss.MultiBoxLoss
@@ -100,12 +102,15 @@ train_aug:
     transforms:
       - __class_fullname__: albumentations.augmentations.transforms.RandomBrightnessContrast
         always_apply: false
-        brightness_limit: 0.125
+        brightness_limit: 0.2
         contrast_limit: [0.5, 1.5]
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.HueSaturationValue
-        hue_shift_limit: 18
+        hue_shift_limit: 20
         val_shift_limit: 0
+        p: 0.5
+      - __class_fullname__: albumentations.augmentations.transforms.RandomGamma
+        gamma_limit: [80, 120]
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.Resize
         height: 840

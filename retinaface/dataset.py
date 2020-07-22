@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 
 import albumentations as albu
 import numpy as np
@@ -13,11 +13,14 @@ from retinaface.data_augment import Preproc
 
 
 class FaceDetectionDataset(data.Dataset):
-    def __init__(self, label_path: str, image_path: str, transform: albu.Compose, preproc: Preproc) -> None:
+    def __init__(
+        self, label_path: str, image_path: str, transform: albu.Compose, preproc: Preproc, rotate90: bool = False
+    ) -> None:
         self.preproc = preproc
 
         self.image_path = Path(image_path)
         self.transform = transform
+        self.rotate90 = rotate90
 
         with open(label_path) as f:
             self.labels = json.load(f)
@@ -64,15 +67,55 @@ class FaceDetectionDataset(data.Dataset):
 
             annotations = np.append(annotations, annotation, axis=0)
 
-        image, target = self.preproc(image, annotations)
+        if self.rotate90:
+            image, annotations = random_rotate_90(image, annotations.astype(int))
+
+        image, annotations = self.preproc(image, annotations)
 
         image = self.transform(image=image)["image"]
 
         return {
             "image": tensor_from_rgb_image(image),
-            "annotation": target.astype(np.float32),
+            "annotation": annotations.astype(np.float32),
             "file_name": file_name,
         }
+
+
+def random_rotate_90(image: np.ndarray, annotations: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    image_height, image_width = image.shape[:2]
+
+    boxes = annotations[:, :4]
+    keypoints = annotations[:, 4:-1].reshape(-1, 2)
+    labels = annotations[:, -1:]
+
+    invalid_index = keypoints.sum(axis=1) == -2
+
+    keypoints[:, 0] = np.clip(keypoints[:, 0], 0, image_width - 1)
+    keypoints[:, 1] = np.clip(keypoints[:, 1], 0, image_height - 1)
+
+    keypoints[invalid_index] = 0
+
+    category_ids = list(range(boxes.shape[0]))
+
+    transform = albu.Compose(
+        [albu.RandomRotate90(p=1)],
+        keypoint_params=albu.KeypointParams(format="xy"),
+        bbox_params=albu.BboxParams(format="pascal_voc", label_fields=["category_ids"]),
+    )
+    transformed = transform(
+        image=image, keypoints=keypoints.tolist(), bboxes=boxes.tolist(), category_ids=category_ids
+    )
+
+    keypoints = np.array(transformed["keypoints"])
+    keypoints[invalid_index] = -1
+
+    keypoints = keypoints.reshape(-1, 10)
+    boxes = np.array(transformed["bboxes"])
+    image = transformed["image"]
+
+    annotations = np.hstack([boxes, keypoints, labels])
+
+    return image, annotations
 
 
 def detection_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
