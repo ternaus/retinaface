@@ -1,42 +1,27 @@
-"""
-The script detects faces in images.
-
-Takes a folder with images as input and returns a list of jsons:
-
-<image_id>.json
-
-[
-    {
-        "file_name": <img_file_name>,
-        "annotations": [
-                            {
-                                "bbox": [int, int, int, int],
-                                "confidence": float,
-                                "landmarks":  [[x0, y0], [x1, y1] ... [x4, y4]]
-                            }
-    }
-]
-
-"""
-
 import argparse
 import json
 from pathlib import Path
-from typing import List, Any, Dict, Union
+from typing import Dict, List, Union, Optional
 
 import albumentations as albu
 import cv2
 import numpy as np
-import pytorch_lightning as pl
 import torch
-import torch.nn.functional as F
+import torch.distributed as dist
+import torch.nn.parallel
+import torch.utils.data
+import torch.utils.data.distributed
 import yaml
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
-from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size, load_rgb
+from iglovikov_helper_functions.utils.image_utils import pad_to_size
+from iglovikov_helper_functions.utils.image_utils import unpad_from_size
 from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image
-from torch.utils.data import DataLoader, Dataset
+from torch.nn import functional as F
+from torch.utils.data import Dataset
+from torch.utils.data.distributed import DistributedSampler
 from torchvision.ops import nms
+from tqdm import tqdm
 
 from retinaface.box_utils import decode, decode_landm
 from retinaface.utils import load_checkpoint
@@ -46,15 +31,20 @@ def get_args():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg("-i", "--input_path", type=Path, help="Path with images.", required=True)
-    arg("-c", "--config_path", type=Path, help="Path with images.", required=True)
+    arg("-c", "--config_path", type=Path, help="Path to config.", required=True)
     arg("-o", "--output_path", type=Path, help="Path to save jsons.", required=True)
     arg("-v", "--visualize", action="store_true", help="Visualize predictions")
     arg("-g", "--num_gpus", type=int, help="The number of GPUs to use.")
     arg("-m", "--max_size", type=int, help="Resize the largest side to this number", default=960)
+    arg("-b", "--batch_size", type=int, help="batch_size", default=1)
+    arg("-j", "--num_workers", type=int, help="num_workers", default=12)
     arg("--confidence_threshold", default=0.7, type=float, help="confidence_threshold")
     arg("--nms_threshold", default=0.4, type=float, help="nms_threshold")
-    arg("-w", "--weight_path", type=str, help="Path to weights.")
+    arg("-w", "--weight_path", type=str, help="Path to weights.", required=True)
     arg("--keep_top_k", default=750, type=int, help="keep_top_k")
+    arg("--world_size", default=-1, type=int, help="number of nodes for distributed training")
+    arg("--local_rank", default=-1, type=int, help="node rank for distributed training")
+    arg("--fp16", action="store_true", help="Use fp6")
     return parser.parse_args()
 
 
@@ -68,9 +58,15 @@ class InferenceDataset(Dataset):
     def __len__(self) -> int:
         return len(self.file_paths)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Optional[Dict[str, torch.Tensor]]:
         image_path = self.file_paths[idx]
-        image = load_rgb(image_path, lib="cv2")
+
+        image = cv2.imread(str(image_path))
+        if image is None:
+            return None
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
         image_height, image_width = image.shape[:2]
 
         image = self.resize(image=image)["image"]
@@ -85,7 +81,7 @@ class InferenceDataset(Dataset):
         return {
             "torched_image": tensor_from_rgb_image(image),
             "image_path": str(image_path),
-            "pads": torch.from_numpy(np.array(pads)),
+            "pads": np.array(pads),
             "image_height": image_height,
             "image_width": image_width,
         }
@@ -103,183 +99,238 @@ def unnormalize(image):
     return image
 
 
-class InferenceModel(pl.LightningModule):
-    def __init__(self, hparams: Dict[str, Any], weight_path: Union[Path, str]) -> None:
-        super().__init__()
-        self.hparams = hparams
-        self.model = object_from_dict(self.hparams["model"])
+def process_predictions(
+    prediction, original_shapes, input_shape, pads, confidence_threshold, nms_threshold, prior_box, variance
+):
+    loc, conf, land = prediction
 
-        corrections: Dict[str, str] = {"model.": ""}
-        checkpoint = load_checkpoint(file_path=weight_path, rename_in_layers=corrections)
-        self.model.load_state_dict(checkpoint["state_dict"])
+    conf = F.softmax(conf, dim=-1)
 
-    def setup(self, stage: int = 0) -> None:
-        self.output_vis_path = Path(self.hparams["output_path"]) / "viz"
+    result: List[List[Dict[str, Union[List, float]]]] = []
 
-        if self.hparams["visualize"]:
-            self.output_vis_path.mkdir(exist_ok=True, parents=True)
+    batch_size, _, image_height, image_width = input_shape
 
-        self.output_label_path = Path(self.hparams["output_path"]) / "labels"
-        self.output_label_path.mkdir(exist_ok=True, parents=True)
+    scale1 = torch.from_numpy(np.tile([image_width, image_height], 5)).to(loc.device)
+    scale = torch.from_numpy(np.tile([image_width, image_height], 2)).to(loc.device)
 
-    def forward(self, batch: Dict) -> torch.Tensor:
-        return self.model(batch)
+    for batch_id in range(batch_size):
+        annotations: List[Dict[str, Union[List, float]]] = []
 
-    def test_dataloader(self) -> DataLoader:
-        return DataLoader(
-            InferenceDataset(
-                self.hparams["file_paths"],
-                max_size=self.hparams["max_size"],
-                transform=from_dict(self.hparams["test_aug"]),
-            ),
-            batch_size=1,
-            num_workers=self.hparams["num_workers"],
-            shuffle=False,
-            pin_memory=True,
-            drop_last=False,
-        )
+        boxes = decode(loc.data[batch_id], prior_box.to(loc.device), variance)
 
-    def test_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> None:
-        torched_images = batch["torched_image"]  # images that are rescaled and padded
-        pads = batch["pads"]
-        image_paths = batch["image_path"]
-        image_heights = batch["image_height"]
-        image_widths = batch["image_width"]
+        boxes *= scale
+        scores = conf[batch_id][:, 1]
 
-        labels: List[Dict[str, Any]] = []
+        landmarks = decode_landm(land.data[batch_id], prior_box.to(land.device), variance)
+        landmarks *= scale1
 
-        loc, conf, land = self.model(torched_images)
-        conf = F.softmax(conf, dim=-1)
+        # ignore low scores
+        valid_index = torch.where(scores > confidence_threshold)[0]
+        boxes = boxes[valid_index]
+        landmarks = landmarks[valid_index]
+        scores = scores[valid_index]
 
-        batch_size = torched_images.shape[0]
+        order = scores.argsort(descending=True)
 
-        image_height, image_width = torched_images.shape[2:]
+        boxes = boxes[order]
+        landmarks = landmarks[order]
+        scores = scores[order]
 
-        scale_bboxes = torch.from_numpy(np.tile([image_width, image_height], 5)).to(self.device)
-        scale_landmarks = torch.from_numpy(np.tile([image_width, image_height], 2)).to(self.device)
+        # do NMS
+        keep = nms(boxes, scores, nms_threshold)
+        boxes = boxes[keep, :].int()
 
-        priors = object_from_dict(hparams["prior_box"], image_size=(image_height, image_width)).to(loc.device)
+        if boxes.shape[0] == 0:
+            result += [[{"bbox": [], "score": -1, "landmarks": []}]]
+            continue
 
-        for batch_id in range(batch_size):
-            image_path = image_paths[batch_id]
-            file_id = Path(str(image_path)).stem
+        landmarks = landmarks[keep]
+        scores = scores[keep].cpu().numpy().astype(np.float64)
 
-            # resize = max(raw_image.shape[:2]) / self.hparams["max_size"]
-            boxes = decode(loc.data[batch_id], priors, hparams["test_parameters"]["variance"])
-            boxes *= scale_landmarks
-            scores = conf[batch_id][:, 1]
-            # boxes *= scale_landmarks / resize
-            landmarks = decode_landm(land.data[batch_id], priors, hparams["test_parameters"]["variance"])
-            # landmarks *= scale_bboxes / resize
-            landmarks *= scale_bboxes
+        boxes = boxes.cpu().numpy()
+        landmarks = landmarks.cpu().numpy().reshape([-1, 2])
 
-            # ignore low scores
-            valid_index = torch.where(scores > self.hparams["confidence_threshold"])[0]
-            boxes = boxes[valid_index]
-            landmarks = landmarks[valid_index]
-            scores = scores[valid_index]
+        if pads is None:
+            pads_numpy = np.array([0, 0, 0, 0])
+        else:
+            pads_numpy = pads[batch_id]
 
-            order = scores.argsort(descending=True)
+        unpadded = unpad_from_size(pads_numpy, bboxes=boxes, keypoints=landmarks)
 
-            boxes = boxes[order]
-            landmarks = landmarks[order]
-            scores = scores[order]
+        resize_coeff = max(original_shapes[batch_id]) / max(image_height, image_width)
 
-            # do NMS
-            keep = nms(boxes, scores, self.hparams["nms_threshold"])
-            boxes = boxes[keep, :].int()
+        boxes = (unpadded["bboxes"] * resize_coeff).astype(int)
+        landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff).astype(int)
 
-            if boxes.shape[0] == 0:
-                continue
+        for crop_id, bbox in enumerate(boxes):
+            annotations += [
+                {
+                    "bbox": bbox.tolist(),
+                    "score": scores[crop_id],
+                    "landmarks": landmarks[crop_id].reshape(-1, 2).tolist(),
+                }
+            ]
 
-            landmarks = landmarks[keep].int()
-            scores = scores[keep].cpu().numpy().astype(np.float64)
+        result += [annotations]
 
-            boxes = boxes[: self.hparams["keep_top_k"]].cpu().numpy()
-            landmarks = landmarks[: self.hparams["keep_top_k"]].cpu().numpy().reshape([-1, 2])
-            scores = scores[: self.hparams["keep_top_k"]]
-
-            # Now we need to unpad
-            normalized_image = np.transpose(torched_images[batch_id].cpu().numpy(), (1, 2, 0))
-            image = unnormalize(normalized_image)
-
-            unpadded = unpad_from_size(pads[batch_id].cpu().numpy(), image=image, bboxes=boxes, keypoints=landmarks)
-
-            original_image_height = image_heights[batch_id].item()
-            original_image_width = image_widths[batch_id].item()
-
-            image = unpadded["image"]
-            image = cv2.resize(image.astype(np.uint8), (original_image_width, original_image_height))
-
-            resize_coeff = max(original_image_height, original_image_width) / torched_images.shape[-1]
-
-            boxes = (unpadded["bboxes"] * resize_coeff).astype(int)
-            landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff).astype(int)
-
-            if self.hparams["visualize"]:
-                vis_image = image.copy()
-
-                for crop_id, bbox in enumerate(boxes):
-                    landms = landmarks[crop_id].reshape(-1, 2)
-
-                    colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
-
-                    for i, (x, y) in enumerate(landms):
-                        vis_image = cv2.circle(vis_image, (x, y), radius=3, color=colors[i], thickness=3)
-
-                    x_min, y_min, x_max, y_max = bbox
-
-                    x_min = np.clip(x_min, 0, x_max - 1)
-                    y_min = np.clip(y_min, 0, y_max - 1)
-
-                    vis_image = cv2.rectangle(
-                        vis_image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2
-                    )
-
-                    cv2.imwrite(
-                        str(self.output_vis_path / f"{file_id}.jpg"), cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB)
-                    )
-
-            for crop_id, bbox in enumerate(boxes):
-                labels += [
-                    {
-                        "crop_id": crop_id,
-                        "bbox": bbox.tolist(),
-                        "score": scores[crop_id],
-                        "landmarks": landmarks[crop_id].tolist(),
-                    }
-                ]
-
-            result = {"file_path": image_path, "file_id": file_id, "bboxes": labels}
-
-            with open(self.output_label_path / f"{file_id}.json", "w") as f:
-                json.dump(result, f, indent=2)
+    return result
 
 
-if __name__ == "__main__":
+def main():
     args = get_args()
+    torch.distributed.init_process_group(backend="nccl")
 
     with open(args.config_path) as f:
         hparams = yaml.load(f, Loader=yaml.SafeLoader)
 
     hparams.update(
         {
-            "file_paths": sorted([x for x in args.input_path.rglob("*") if x.is_file()]),
             "json_path": args.output_path,
-            "output_path": args.output_path,
             "visualize": args.visualize,
-            "max_size": args.max_size,
             "confidence_threshold": args.confidence_threshold,
             "nms_threshold": args.nms_threshold,
             "keep_top_k": args.keep_top_k,
-            "num_workers": 12,
+            "local_rank": args.local_rank,
+            "prior_box": object_from_dict(hparams["prior_box"], image_size=[args.max_size, args.max_size]),
+            "fp16": args.fp16,
         }
     )
-    hparams["trainer"]["gpus"] = 1  # Right now we work only with one GPU
 
-    model = InferenceModel(hparams, weight_path=args.weight_path)
-    trainer = object_from_dict(
-        hparams["trainer"], checkpoint_callback=object_from_dict(hparams["checkpoint_callback"]),
+    if args.visualize:
+        output_vis_path = args.output_path / "viz"
+        output_vis_path.mkdir(parents=True, exist_ok=True)
+        hparams["output_vis_path"] = output_vis_path
+
+    output_label_path = args.output_path / "labels"
+    output_label_path.mkdir(parents=True, exist_ok=True)
+    hparams["output_label_path"] = output_label_path
+
+    device = torch.device("cuda", args.local_rank)
+
+    model = object_from_dict(hparams["model"])
+    model = model.to(device)
+
+    if args.fp16:
+        model = model.half()
+
+    corrections: Dict[str, str] = {"model.": ""}
+    checkpoint = load_checkpoint(file_path=args.weight_path, rename_in_layers=corrections)
+    model.load_state_dict(checkpoint["state_dict"])
+
+    model = torch.nn.parallel.DistributedDataParallel(
+        model, device_ids=[args.local_rank], output_device=args.local_rank
     )
 
-    trainer.test(model)
+    file_paths = sorted([x for x in args.input_path.rglob("*") if x.is_file()])
+
+    dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]),)
+
+    sampler = DistributedSampler(dataset, shuffle=False)
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        shuffle=False,
+        drop_last=False,
+        sampler=sampler,
+    )
+
+    predict(dataloader, model, hparams, device)
+
+
+def predict(dataloader, model, hparams, device):
+    model.eval()
+
+    if hparams["local_rank"] == 0:
+        loader = tqdm(dataloader)
+    else:
+        loader = dataloader
+
+    with torch.no_grad():
+        for batch in loader:
+            torched_images = batch["torched_image"]  # images that are rescaled and padded
+
+            if hparams["fp16"]:
+                torched_images = torched_images.half()
+
+            pads = batch["pads"]
+            image_paths = batch["image_path"]
+            image_heights = batch["image_height"]
+            image_widths = batch["image_width"]
+
+            batch_size = torched_images.shape[0]
+
+            image_heights = image_heights.cpu().numpy()
+            image_widths = image_widths.cpu().numpy()
+
+            original_shapes = list(zip(image_heights, image_widths))
+
+            prediction = model(torched_images.to(device))
+
+            output_annotations = process_predictions(
+                prediction=prediction,
+                original_shapes=original_shapes,
+                input_shape=torched_images.shape,
+                pads=pads.cpu().numpy(),
+                confidence_threshold=hparams["confidence_threshold"],
+                nms_threshold=hparams["nms_threshold"],
+                prior_box=hparams["prior_box"],
+                variance=hparams["test_parameters"]["variance"],
+            )
+
+            for batch_id in range(batch_size):
+                annotations = output_annotations[batch_id]
+                if not annotations[0]["bbox"]:
+                    continue
+
+                file_name = Path(image_paths[batch_id]).name
+                file_id = Path(image_paths[batch_id]).stem
+
+                predictions = {
+                    "file_name": file_name,
+                    "annotations": annotations,
+                    "file_path": str(image_paths[batch_id]),
+                }
+
+                with open(hparams["output_label_path"] / f"{file_id}.json", "w") as f:
+                    json.dump(predictions, f, indent=2)
+
+                if hparams["visualize"]:
+                    normalized_image = np.transpose(torched_images[batch_id].cpu().numpy(), (1, 2, 0))
+                    image = unnormalize(normalized_image)
+                    unpadded = unpad_from_size(pads[batch_id].cpu().numpy(), image)
+
+                    original_image_height = image_heights[batch_id].item()
+                    original_image_width = image_widths[batch_id].item()
+
+                    image = cv2.resize(
+                        unpadded["image"].astype(np.uint8), (original_image_width, original_image_height)
+                    )
+
+                    for annotation_id in range(len(annotations)):
+                        landmarks = annotations[annotation_id]["landmarks"]
+
+                        colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
+
+                        for landmark_id, (x, y) in enumerate(landmarks):
+                            image = cv2.circle(image, (x, y), radius=3, color=colors[landmark_id], thickness=3)
+
+                        x_min, y_min, x_max, y_max = annotations[annotation_id]["bbox"]
+
+                        x_min = np.clip(x_min, 0, x_max - 1)
+                        y_min = np.clip(y_min, 0, y_max - 1)
+
+                        vis_image = cv2.rectangle(
+                            image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2
+                        )
+
+                        cv2.imwrite(
+                            str(hparams["output_vis_path"] / f"{file_id}.jpg"),
+                            cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB),
+                        )
+
+
+if __name__ == "__main__":
+    main()

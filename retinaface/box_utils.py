@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -166,7 +166,9 @@ def encode(matched, priors, variances):
     return torch.cat([g_cxcy, g_wh], 1)  # [num_priors,4]
 
 
-def encode_landm(matched: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> torch.Tensor:
+def encode_landm(
+    matched: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
+) -> torch.Tensor:
     """Encode the variances from the priorbox layers into the ground truth boxes we have matched
     (based on jaccard overlap) with the prior boxes.
     Args:
@@ -196,7 +198,9 @@ def encode_landm(matched: torch.Tensor, priors: torch.Tensor, variances: List[fl
 
 
 # Adapted from https://github.com/Hakuyume/chainer-ssd
-def decode(loc: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> torch.Tensor:
+def decode(
+    loc: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
+) -> torch.Tensor:
     """Decode locations from predictions using priors to undo the encoding we did for offset regression at train time.
     Args:
         loc: location predictions for loc layers,
@@ -220,7 +224,9 @@ def decode(loc: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> t
     return boxes
 
 
-def decode_landm(pre: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> torch.Tensor:
+def decode_landm(
+    pre: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
+) -> torch.Tensor:
     """Decode landmarks from predictions using priors to undo the encoding we did for offset regression at train time.
     Args:
         pre: landmark predictions for loc layers,

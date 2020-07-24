@@ -32,27 +32,24 @@ def get_args():
 class RetinaFace(pl.LightningModule):
     def __init__(self, hparams: Dict[str, Any]):
         super().__init__()
-
         self.hparams = hparams
+
+        self.prior_box = object_from_dict(self.hparams["prior_box"], image_size=self.hparams["image_size"])
         self.model = object_from_dict(self.hparams["model"])
         corrections: Dict[str, str] = {"model.": ""}
 
-        checkpoint = load_checkpoint(file_path=self.hparams["weights"], rename_in_layers=corrections)
-        # self.model.load_state_dict(checkpoint["state_dict"], pior_box=object_from_dict(self.hparams["prior_box"],
-        #                                                                                image_size=self.hparams[
-        #                                                                                    "image_size"]))
-
-        self.model.load_state_dict(checkpoint["state_dict"])
+        if "weights" in self.hparams:
+            checkpoint = load_checkpoint(file_path=self.hparams["weights"], rename_in_layers=corrections)
+            self.model.load_state_dict(checkpoint["state_dict"])
 
         if hparams["sync_bn"]:
             self.model = apex.parallel.convert_syncbn_model(self.model)
 
         self.loss_weights = self.hparams["loss_weights"]
 
-        self.priors = object_from_dict(self.hparams["prior_box"], image_size=self.hparams["image_size"])
-        self.loss = object_from_dict(self.hparams["loss"], priors=self.priors)
+        self.loss = object_from_dict(self.hparams["loss"], priors=self.prior_box)
 
-    def setup(self, state=0):
+    def setup(self, state: int = 0) -> None:
         self.preproc = Preproc(img_dim=self.hparams["image_size"][0])
 
     def forward(self, batch: torch.Tensor) -> torch.Tensor:
@@ -143,7 +140,6 @@ class RetinaFace(pl.LightningModule):
         image_width = images.shape[3]
 
         annotations = batch["annotation"]
-
         file_names = batch["file_name"]
 
         out = self.forward(images)
@@ -159,7 +155,7 @@ class RetinaFace(pl.LightningModule):
 
         for batch_id in range(batch_size):
             boxes = decode(
-                location.data[batch_id], self.priors.to(images.device), self.hparams["test_parameters"]["variance"]
+                location.data[batch_id], self.prior_box.to(images.device), self.hparams["test_parameters"]["variance"]
             )
             scores = confidence[batch_id][:, 1]
 

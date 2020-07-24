@@ -25,8 +25,6 @@ class FaceDetectionDataset(data.Dataset):
         with open(label_path) as f:
             self.labels = json.load(f)
 
-        self.valid_annotation_indices = np.array([0, 1, 3, 4, 6, 7, 9, 10, 12, 13])
-
     def __len__(self) -> int:
         return len(self.labels)
 
@@ -44,22 +42,18 @@ class FaceDetectionDataset(data.Dataset):
 
         for label in labels["annotations"]:
             annotation = np.zeros((1, num_annotations))
-            # bbox
 
-            annotation[0, 0] = np.clip(label["x_min"], 0, image_width - 1)
-            annotation[0, 1] = np.clip(label["y_min"], 0, image_height - 1)
-            annotation[0, 2] = np.clip(label["x_min"] + label["width"], 1, image_width - 1)
-            annotation[0, 3] = np.clip(label["y_min"] + label["height"], 1, image_height - 1)
+            x_min, y_min, x_max, y_max = label["bbox"]
 
-            if not 0 <= annotation[0, 0] < annotation[0, 2] < image_width:
-                continue
-            if not 0 <= annotation[0, 1] < annotation[0, 3] < image_height:
-                continue
+            annotation[0, 0] = np.clip(x_min, 0, image_width - 1)
+            annotation[0, 1] = np.clip(y_min, 0, image_height - 1)
+            annotation[0, 2] = np.clip(x_max, x_min + 1, image_width - 1)
+            annotation[0, 3] = np.clip(y_max, y_min + 1, image_height - 1)
 
             if "landmarks" in label and label["landmarks"]:
                 landmarks = np.array(label["landmarks"])
                 # landmarks
-                annotation[0, 4:14] = landmarks[self.valid_annotation_indices]
+                annotation[0, 4:14] = landmarks.reshape(-1, 10)
                 if annotation[0, 4] < 0:
                     annotation[0, 14] = -1
                 else:
@@ -69,6 +63,8 @@ class FaceDetectionDataset(data.Dataset):
 
         if self.rotate90:
             image, annotations = random_rotate_90(image, annotations.astype(int))
+
+        print(annotations.shape, file_name)
 
         image, annotations = self.preproc(image, annotations)
 
