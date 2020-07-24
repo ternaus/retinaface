@@ -87,30 +87,32 @@ optional arguments:
 ## Inference
 
 ```
-python retinaface/inference.py -h                                                                                                                                                                                (anaconda3)  14:47:09
+python retinaface/inference.py -h                                                                                                                                                                              (anaconda3)  14:50:48
 usage: inference.py [-h] -i INPUT_PATH -c CONFIG_PATH -o OUTPUT_PATH [-v]
-                    [-g NUM_GPUS] [-t TARGET_SIZE] [-m MAX_SIZE]
-                    [--origin_size]
+                    [-g NUM_GPUS] [-m MAX_SIZE] [-b BATCH_SIZE]
+                    [-j NUM_WORKERS]
                     [--confidence_threshold CONFIDENCE_THRESHOLD]
-                    [--nms_threshold NMS_THRESHOLD] [-w WEIGHT_PATH]
-                    [--keep_top_k KEEP_TOP_K]
+                    [--nms_threshold NMS_THRESHOLD] -w WEIGHT_PATH
+                    [--keep_top_k KEEP_TOP_K] [--world_size WORLD_SIZE]
+                    [--local_rank LOCAL_RANK] [--fp16]
 
 optional arguments:
   -h, --help            show this help message and exit
   -i INPUT_PATH, --input_path INPUT_PATH
                         Path with images.
   -c CONFIG_PATH, --config_path CONFIG_PATH
-                        Path with images.
+                        Path to config.
   -o OUTPUT_PATH, --output_path OUTPUT_PATH
                         Path to save jsons.
   -v, --visualize       Visualize predictions
   -g NUM_GPUS, --num_gpus NUM_GPUS
                         The number of GPUs to use.
-  -t TARGET_SIZE, --target_size TARGET_SIZE
-                        Target size
   -m MAX_SIZE, --max_size MAX_SIZE
-                        Target size
-  --origin_size         Whether use origin image size to evaluate
+                        Resize the largest side to this number
+  -b BATCH_SIZE, --batch_size BATCH_SIZE
+                        batch_size
+  -j NUM_WORKERS, --num_workers NUM_WORKERS
+                        num_workers
   --confidence_threshold CONFIDENCE_THRESHOLD
                         confidence_threshold
   --nms_threshold NMS_THRESHOLD
@@ -119,7 +121,18 @@ optional arguments:
                         Path to weights.
   --keep_top_k KEEP_TOP_K
                         keep_top_k
+  --world_size WORLD_SIZE
+                        number of nodes for distributed training
+  --local_rank LOCAL_RANK
+                        node rank for distributed training
+  --fp16                Use fp6
 ```
-
 [Weights](https://drive.google.com/drive/folders/1DuiwlTd1BbZ0ZzafrV7qMncko1Z5a412?usp=sharing) for the model
 with [config](retinaface/configs/2020-07-19.yaml).
+
+```
+python -m torch.distributed.launch --nproc_per_node=<num_gpus> retinaface/inference.py <parameters>
+```
+
+[Weights](https://drive.google.com/file/d/1slNNW1bntYqDKpvi2r1QfcQAwnhsVw9n/view?usp=sharing) for the model
+with [config](retinaface/configs/2020-07-20.yaml).
