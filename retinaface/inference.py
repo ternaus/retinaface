@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Union, Optional, Any
 
 import albumentations as albu
 import cv2
@@ -58,7 +58,7 @@ class InferenceDataset(Dataset):
     def __len__(self) -> int:
         return len(self.file_paths)
 
-    def __getitem__(self, idx: int) -> Optional[Dict[str, Union[str, torch.Tensor]]]:
+    def __getitem__(self, idx: int) -> Optional[Dict[str, Any]]:
         image_path = self.file_paths[idx]
 
         image = cv2.imread(str(image_path))
