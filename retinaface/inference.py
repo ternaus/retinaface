@@ -7,7 +7,6 @@ import albumentations as albu
 import cv2
 import numpy as np
 import torch
-import torch.distributed as dist
 import torch.nn.parallel
 import torch.utils.data
 import torch.utils.data.distributed
