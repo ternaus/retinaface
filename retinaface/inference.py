@@ -58,7 +58,7 @@ class InferenceDataset(Dataset):
     def __len__(self) -> int:
         return len(self.file_paths)
 
-    def __getitem__(self, idx: int) -> Optional[Dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> Optional[Dict[str, Union[str, torch.Tensor]]]:
         image_path = self.file_paths[idx]
 
         image = cv2.imread(str(image_path))
