@@ -309,15 +309,15 @@ def predict(dataloader, model, hparams, device):
                         unpadded["image"].astype(np.uint8), (original_image_width, original_image_height)
                     )
 
-                    for annotation_id in range(len(annotations)):
-                        landmarks = annotations[annotation_id]["landmarks"]
+                    for annotation in annotations:
+                        landmarks = annotation["landmarks"]
 
                         colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
 
                         for landmark_id, (x, y) in enumerate(landmarks):
                             image = cv2.circle(image, (x, y), radius=3, color=colors[landmark_id], thickness=3)
 
-                        x_min, y_min, x_max, y_max = annotations[annotation_id]["bbox"]
+                        x_min, y_min, x_max, y_max = annotation["bbox"]
 
                         x_min = np.clip(x_min, 0, x_max - 1)
                         y_min = np.clip(y_min, 0, y_max - 1)

@@ -1,15 +1,10 @@
-from typing import Dict, Tuple, List, Union, Optional
+from typing import Dict, Tuple
 
-import numpy as np
 import torch
-from iglovikov_helper_functions.utils.image_utils import unpad_from_size
 from torch import nn
-from torch.nn import functional as F
 from torchvision import models
 from torchvision.models import _utils
-from torchvision.ops import nms
 
-from retinaface.box_utils import decode, decode_landm
 from retinaface.net import FPN, SSH
 
 
