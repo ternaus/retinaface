@@ -74,7 +74,7 @@ The pipeline expects labels in the format:
 ## Training
 
 ```
-python retinaface/train.py -h                                                                                                                                                                              (anaconda3)  15:14:11
+python retinaface/train.py -h
 usage: train.py [-h] -c CONFIG_PATH
 
 optional arguments:
@@ -87,7 +87,7 @@ optional arguments:
 ## Inference
 
 ```
-python retinaface/inference.py -h                                                                                                                                                                              (anaconda3)  14:50:48
+python retinaface/inference.py -h
 usage: inference.py [-h] -i INPUT_PATH -c CONFIG_PATH -o OUTPUT_PATH [-v]
                     [-g NUM_GPUS] [-m MAX_SIZE] [-b BATCH_SIZE]
                     [-j NUM_WORKERS]
