@@ -139,6 +139,5 @@ optional arguments:
 python -m torch.distributed.launch --nproc_per_node=<num_gpus> retinaface/inference.py <parameters>
 ```
 
-
-* [Weights](https://drive.google.com/drive/folders/1DuiwlTd1BbZ0ZzafrV7qMncko1Z5a412?usp=sharing) for the model with [config](retinaface/configs/2020-07-19.yaml).
-* [Weights](https://drive.google.com/file/d/1slNNW1bntYqDKpvi2r1QfcQAwnhsVw9n/view?usp=sharing) for the model with [config](retinaface/configs/2020-07-20.yaml).
+*  [Weights](https://drive.google.com/drive/folders/1DuiwlTd1BbZ0ZzafrV7qMncko1Z5a412?usp=sharing) for the model with [config](retinaface/configs/2020-07-19.yaml).
+*  [Weights](https://drive.google.com/file/d/1slNNW1bntYqDKpvi2r1QfcQAwnhsVw9n/view?usp=sharing) for the model with [config](retinaface/configs/2020-07-20.yaml).
