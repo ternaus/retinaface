@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 
 import albumentations as albu
 import numpy as np
@@ -14,24 +14,40 @@ from retinaface.data_augment import Preproc
 
 class FaceDetectionDataset(data.Dataset):
     def __init__(
-        self, label_path: str, image_path: str, transform: albu.Compose, preproc: Preproc, rotate90: bool = False
+        self,
+        label_path: str,
+        image_path: Optional[str],
+        transform: albu.Compose,
+        preproc: Preproc,
+        rotate90: bool = False,
     ) -> None:
         self.preproc = preproc
 
-        self.image_path = Path(image_path)
+        if image_path is None:
+            self.image_path = image_path
+        else:
+            self.image_path = Path(image_path)
+
         self.transform = transform
         self.rotate90 = rotate90
 
         with open(label_path) as f:
             self.labels = json.load(f)
 
+        self.labels = [x for x in self.labels if Path(x["file_path"]).exists()]
+
     def __len__(self) -> int:
         return len(self.labels)
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         labels = self.labels[index]
+
         file_name = labels["file_name"]
-        image = load_rgb(self.image_path / file_name)
+
+        if self.image_path is None:
+            image = load_rgb(labels["file_path"])
+        else:
+            image = load_rgb(self.image_path / file_name)
 
         # annotations will have the format
         # 4: box, 10 landmarks, 1: landmarks / no landmarks
@@ -42,7 +58,6 @@ class FaceDetectionDataset(data.Dataset):
 
         for label in labels["annotations"]:
             annotation = np.zeros((1, num_annotations))
-
             x_min, y_min, x_max, y_max = label["bbox"]
 
             annotation[0, 0] = np.clip(x_min, 0, image_width - 1)
@@ -63,8 +78,6 @@ class FaceDetectionDataset(data.Dataset):
 
         if self.rotate90:
             image, annotations = random_rotate_90(image, annotations.astype(int))
-
-        print(annotations.shape, file_name)
 
         image, annotations = self.preproc(image, annotations)
 

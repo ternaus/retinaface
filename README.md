@@ -42,33 +42,40 @@ The pipeline expects labels in the format:
     "file_name": "0--Parade/0_Parade_marchingband_1_849.jpg",
     "annotations": [
       {
-        "x_min": 449,
-        "y_min": 330,
-        "width": 122,
-        "height": 149,
+        "bbox": [
+          449,
+          330,
+          571,
+          720
+        ],
         "landmarks": [
-          488.906,1
-          373.643,
-          0.0,
-          542.089,
-          376.442,
-          0.0,
-          515.031,
-          412.83,
-          0.0,
-          485.174,
-          425.893,
-          0.0,
-          538.357,
-          431.491,
-          0.0,
-          0.82
+          [
+            488.906,
+            373.643
+          ],
+          [
+            542.089,
+            376.442
+          ],
+          [
+            515.031,
+            412.83
+          ],
+          [
+            485.174,
+            425.893
+          ],
+          [
+            538.357,
+            431.491
+          ]
         ]
       }
     ]
   },
 ```
 
+You can convert the defaule labels of the WiderFaces to the json of the propper format with this [script](https://github.com/ternaus/iglovikov_helper_functions/blob/master/iglovikov_helper_functions/data_processing/wider_face/prepare_data.py).
 
 
 ## Training

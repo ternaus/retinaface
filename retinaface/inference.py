@@ -61,9 +61,6 @@ class InferenceDataset(Dataset):
         image_path = self.file_paths[idx]
 
         image = cv2.imread(str(image_path))
-        if image is None:
-            return None
-
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         image_height, image_width = image.shape[:2]
@@ -222,7 +219,7 @@ def main():
 
     file_paths = sorted([x for x in args.input_path.rglob("*") if x.is_file()])
 
-    dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]),)
+    dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 
     sampler = DistributedSampler(dataset, shuffle=False)
 
