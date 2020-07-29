@@ -1,0 +1,174 @@
+---
+seed: 1984
+
+sync_bn: True
+
+num_workers: 12
+experiment_name: "2020-07-24"
+
+train_image_path:
+val_image_path:
+
+train_annotation_path: /home/vladimir/workspace/data2/lyft/selfies/selfie/1.json
+#val_annotation_path: /home/vladimir/workspace/data3/WiderFace/val/label.json
+
+weights: 2020-07-20/epoch=149.ckpt
+
+num_classes: 2
+
+model:
+  type: retinaface.network.RetinaFace
+  name: Resnet50
+  pretrained: True
+  return_layers: {"layer2": 1, "layer3": 2, "layer4": 3}
+  in_channels: 256
+  out_channels: 256
+
+
+optimizer:
+  type: torch.optim.SGD
+  lr: 0.001
+  weight_decay: 0.0001
+  momentum: 0.9
+
+trainer:
+  type: pytorch_lightning.Trainer
+  early_stop_callback: False
+  gpus: [1, 2, 3]
+  use_amp: True
+  amp_level: O1
+  max_epochs: 150
+  distributed_backend: ddp
+  num_sanity_val_steps: 1
+  progress_bar_refresh_rate: 1
+  benchmark: True
+  precision: 16
+
+scheduler:
+  type: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+  T_0: 10
+  T_mult: 2
+
+train_parameters:
+  batch_size: 8
+  rotate90: True
+
+checkpoint_callback:
+  type: pytorch_lightning.callbacks.ModelCheckpoint
+  filepath: "2020-07-24"
+  monitor: val_loss
+  verbose: True
+  mode: max
+  save_top_k: -1
+
+val_parameters:
+  batch_size: 10
+  iou_threshold: 0.4
+  rotate90: True
+
+loss:
+  type: retinaface.multibox_loss.MultiBoxLoss
+  num_classes: 2
+  overlap_thresh: 0.35
+  prior_for_matching: True
+  bkg_label: 0
+  neg_mining: True
+  neg_pos: 7
+  neg_overlap: 0.35
+  encode_target: False
+
+prior_box:
+  type: retinaface.prior_box.priorbox
+  min_sizes: [[16, 32], [64, 128], [256, 512]]
+  steps: [8, 16, 32]
+  clip: False
+
+image_size: [840, 840]
+
+loss_weights:
+  localization: 2
+  classification: 1
+  landmarks: 1
+
+test_parameters:
+  variance: [0.1, 0.2]
+
+train_aug:
+  transform:
+    __class_fullname__: albumentations.core.composition.Compose
+    bbox_params: null
+    keypoint_params: null
+    p: 1
+    transforms:
+      - __class_fullname__: albumentations.augmentations.transforms.RandomBrightnessContrast
+        always_apply: false
+        brightness_limit: 0.2
+        contrast_limit: [0.5, 1.5]
+        p: 0.5
+      - __class_fullname__: albumentations.augmentations.transforms.HueSaturationValue
+        hue_shift_limit: 20
+        val_shift_limit: 0
+        p: 0.5
+      - __class_fullname__: albumentations.augmentations.transforms.RandomGamma
+        gamma_limit: [80, 120]
+        p: 0.5
+      - __class_fullname__: albumentations.augmentations.transforms.Resize
+        height: 840
+        width: 840
+        p: 1
+      - __class_fullname__: albumentations.augmentations.transforms.Normalize
+        always_apply: false
+        max_pixel_value: 255.0
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        p: 1
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
+
+val_aug:
+  transform:
+    __class_fullname__: albumentations.core.composition.Compose
+    bbox_params: null
+    keypoint_params: null
+    p: 1
+    transforms:
+      - __class_fullname__: albumentations.augmentations.transforms.Resize
+        height: 840
+        width: 840
+        p: 1
+      - __class_fullname__: albumentations.augmentations.transforms.Normalize
+        always_apply: false
+        max_pixel_value: 255.0
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        p: 1
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
+
+test_aug:
+  transform:
+    __class_fullname__: albumentations.core.composition.Compose
+    bbox_params: null
+    keypoint_params: null
+    p: 1
+    transforms:
+      - __class_fullname__: albumentations.augmentations.transforms.Normalize
+        always_apply: false
+        max_pixel_value: 255.0
+        mean:
+          - 0.485
+          - 0.456
+          - 0.406
+        p: 1
+        std:
+          - 0.229
+          - 0.224
+          - 0.225
