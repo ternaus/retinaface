@@ -190,8 +190,7 @@ def encode_landm(
     priors = torch.cat([priors_cx, priors_cy, priors_w, priors_h], dim=2)
     g_cxcy = matched[:, :, :2] - priors[:, :, :2]
     # encode variance
-    g_cxcy /= variances[0] * priors[:, :, 2:]
-    # g_cxcy /= priors[:, :, 2:]
+    g_cxcy = g_cxcy // variances[0] * priors[:, :, 2:]
     g_cxcy = g_cxcy.reshape(g_cxcy.size(0), -1)
     # return target for smooth_l1_loss
     return g_cxcy
