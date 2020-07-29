@@ -229,7 +229,7 @@ def main():
 
     file_paths = []
 
-    for regexp in ["*.jpg", "*.png", "*.jpeg", "*.JPG", ""]:
+    for regexp in ["*.jpg", "*.png", "*.jpeg", "*.JPG"]:
         file_paths += sorted([x for x in tqdm(args.input_path.rglob(regexp))])
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
