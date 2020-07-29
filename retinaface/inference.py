@@ -33,7 +33,6 @@ def get_args():
     arg("-c", "--config_path", type=Path, help="Path to config.", required=True)
     arg("-o", "--output_path", type=Path, help="Path to save jsons.", required=True)
     arg("-v", "--visualize", action="store_true", help="Visualize predictions")
-    arg("-g", "--num_gpus", type=int, help="The number of GPUs to use.")
     arg("-m", "--max_size", type=int, help="Resize the largest side to this number", default=960)
     arg("-b", "--batch_size", type=int, help="batch_size", default=1)
     arg("-j", "--num_workers", type=int, help="num_workers", default=12)
@@ -44,6 +43,7 @@ def get_args():
     arg("--world_size", default=-1, type=int, help="number of nodes for distributed training")
     arg("--local_rank", default=-1, type=int, help="node rank for distributed training")
     arg("--fp16", action="store_true", help="Use fp6")
+    arg("--folder_in_name", action="store_true", help="Add folder to the saved labels.")
     return parser.parse_args()
 
 
@@ -96,7 +96,15 @@ def unnormalize(image):
 
 
 def process_predictions(
-    prediction, original_shapes, input_shape, pads, confidence_threshold, nms_threshold, prior_box, variance
+    prediction,
+    original_shapes,
+    input_shape,
+    pads,
+    confidence_threshold,
+    nms_threshold,
+    prior_box,
+    variance,
+    keep_top_k,
 ):
     loc, conf, land = prediction
 
@@ -141,10 +149,11 @@ def process_predictions(
             continue
 
         landmarks = landmarks[keep]
-        scores = scores[keep].cpu().numpy().astype(np.float64)
 
-        boxes = boxes.cpu().numpy()
-        landmarks = landmarks.cpu().numpy().reshape([-1, 2])
+        scores = scores[keep].cpu().numpy().astype(np.float64)[:keep_top_k]
+        boxes = boxes.cpu().numpy()[:keep_top_k, :]
+        landmarks = landmarks.cpu().numpy()[:keep_top_k, :]
+        landmarks = landmarks.reshape([-1, 2])
 
         if pads is None:
             pads_numpy = np.array([0, 0, 0, 0])
@@ -189,6 +198,7 @@ def main():
             "local_rank": args.local_rank,
             "prior_box": object_from_dict(hparams["prior_box"], image_size=[args.max_size, args.max_size]),
             "fp16": args.fp16,
+            "folder_in_name": args.folder_in_name,
         }
     )
 
@@ -217,7 +227,7 @@ def main():
         model, device_ids=[args.local_rank], output_device=args.local_rank
     )
 
-    file_paths = sorted([x for x in args.input_path.rglob("*") if x.is_file()])
+    file_paths = sorted([x for x in tqdm(args.input_path.rglob("*.jpg"))])
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 
@@ -274,6 +284,7 @@ def predict(dataloader, model, hparams, device):
                 nms_threshold=hparams["nms_threshold"],
                 prior_box=hparams["prior_box"],
                 variance=hparams["test_parameters"]["variance"],
+                keep_top_k=hparams["keep_top_k"],
             )
 
             for batch_id in range(batch_size):
@@ -281,16 +292,20 @@ def predict(dataloader, model, hparams, device):
                 if not annotations[0]["bbox"]:
                     continue
 
+                folder_name = Path(image_paths[batch_id]).parent.name
                 file_name = Path(image_paths[batch_id]).name
                 file_id = Path(image_paths[batch_id]).stem
 
                 predictions = {
                     "file_name": file_name,
                     "annotations": annotations,
-                    "file_path": str(image_paths[batch_id]),
+                    "file_path": str(Path(folder_name) / file_name),
                 }
 
-                with open(hparams["output_label_path"] / f"{file_id}.json", "w") as f:
+                (hparams["output_label_path"] / folder_name).mkdir(exist_ok=True, parents=True)
+                result_path = hparams["output_label_path"] / folder_name / f"{file_id}.json"
+
+                with open(result_path, "w") as f:
                     json.dump(predictions, f, indent=2)
 
                 if hparams["visualize"]:
@@ -318,14 +333,12 @@ def predict(dataloader, model, hparams, device):
                         x_min = np.clip(x_min, 0, x_max - 1)
                         y_min = np.clip(y_min, 0, y_max - 1)
 
-                        vis_image = cv2.rectangle(
-                            image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2
-                        )
+                        image = cv2.rectangle(image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2)
 
-                        cv2.imwrite(
-                            str(hparams["output_vis_path"] / f"{file_id}.jpg"),
-                            cv2.cvtColor(vis_image, cv2.COLOR_BGR2RGB),
-                        )
+                        (hparams["output_vis_path"] / folder_name).mkdir(exist_ok=True, parents=True)
+                        result_path = hparams["output_vis_path"] / folder_name / f"{file_id}.jpg"
+
+                        cv2.imwrite(str(result_path), cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
 
 if __name__ == "__main__":
