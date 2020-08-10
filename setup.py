@@ -9,7 +9,7 @@ from setuptools import Command, find_packages, setup
 
 # Package meta-data.
 name = "retinaface_pytorch"
-description = "Unstructured set of the helper functions."
+description = "Retinaface implementation in Pytorch."
 url = "https://github.com/ternaus/retinaface"
 email = "iglovikov@gmail.com"
 author = "Vladimir Iglovikov"
