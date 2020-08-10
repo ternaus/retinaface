@@ -8,7 +8,7 @@ from typing import Tuple, List
 from setuptools import Command, find_packages, setup
 
 # Package meta-data.
-name = "pytorch_retinaface"
+name = "retinaface_pytorch"
 description = "Unstructured set of the helper functions."
 url = "https://github.com/ternaus/retinaface"
 email = "iglovikov@gmail.com"
