@@ -8,7 +8,7 @@ from typing import Tuple, List
 from setuptools import Command, find_packages, setup
 
 # Package meta-data.
-name = "retinaface"
+name = "pytorch_retinaface"
 description = "Unstructured set of the helper functions."
 url = "https://github.com/ternaus/retinaface"
 email = "iglovikov@gmail.com"
@@ -18,7 +18,7 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 
 
 def get_version():
-    version_file = os.path.join(current_dir, name, "__init__.py")
+    version_file = os.path.join(current_dir, "retinaface", "__init__.py")
     with io.open(version_file, encoding="utf-8") as f:
         return re.search(r'^__version__ = [\'"]([^\'"]*)[\'"]', f.read(), re.M).group(1)
 
