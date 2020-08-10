@@ -107,6 +107,20 @@ class Model:
             landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff).astype(int)
 
             for box_id, bbox in enumerate(boxes):
+                x_min, y_min, x_max, y_max = bbox
+
+                x_min = np.clip(x_min, 0, original_width - 1)
+                x_max = np.clip(x_max, x_min + 1, original_width - 1)
+
+                if x_min >= x_max:
+                    continue
+
+                y_min = np.clip(y_min, 0, original_height - 1)
+                y_max = np.clip(y_max, y_min + 1, original_height - 1)
+
+                if y_min >= y_max:
+                    continue
+
                 annotations += [
                     {
                         "bbox": bbox.tolist(),
