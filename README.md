@@ -32,6 +32,28 @@ Color transforms are defined in the config.
 ### Added mAP calculation for validation
 In order to track thr progress, mAP metric is calculated on validation.
 
+## Installation
+
+`pip install -U retinaface_pytorch`
+
+## Example inference
+
+```python
+import cv2
+from retinaface.pre_trained_models import get_model
+```
+
+`image = <numpy array with shape (height, width, 3)>`
+
+```python
+model = get_model("resnet50_2020-07-20", max_size=2048)
+model.eval()
+annotation = model.predict_jsons(image)
+```
+
+Jupyter notebook with the example: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1wLXZyoybDRKizfcIzxPwkeYp-XDpTM-K?usp=sharing)
+
+
 ## Data Preparation
 
 The pipeline expects labels in the format:
@@ -75,7 +97,7 @@ The pipeline expects labels in the format:
   },
 ```
 
-You can convert the defaule labels of the WiderFaces to the json of the propper format with this [script](https://github.com/ternaus/iglovikov_helper_functions/blob/master/iglovikov_helper_functions/data_processing/wider_face/prepare_data.py).
+You can convert the default labels of the WiderFaces to the json of the propper format with this [script](https://github.com/ternaus/iglovikov_helper_functions/blob/master/iglovikov_helper_functions/data_processing/wider_face/prepare_data.py).
 
 
 ## Training
