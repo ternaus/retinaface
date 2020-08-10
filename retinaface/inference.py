@@ -13,9 +13,7 @@ import torch.utils.data.distributed
 import yaml
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
-from iglovikov_helper_functions.utils.image_utils import pad_to_size
-from iglovikov_helper_functions.utils.image_utils import unpad_from_size
-from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image
+from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -23,7 +21,8 @@ from torchvision.ops import nms
 from tqdm import tqdm
 
 from retinaface.box_utils import decode, decode_landm
-from retinaface.utils import load_checkpoint
+from retinaface.utils import load_checkpoint, vis_annotations
+from retinaface.utils import tensor_from_rgb_image
 
 
 def get_args():
@@ -323,25 +322,12 @@ def predict(dataloader, model, hparams, device):
                         unpadded["image"].astype(np.uint8), (original_image_width, original_image_height)
                     )
 
-                    for annotation in annotations:
-                        landmarks = annotation["landmarks"]
+                    image = vis_annotations(image, annotations=annotations)
 
-                        colors = [(255, 0, 0), (128, 255, 0), (255, 178, 102), (102, 128, 255), (0, 255, 255)]
+                    (hparams["output_vis_path"] / folder_name).mkdir(exist_ok=True, parents=True)
+                    result_path = hparams["output_vis_path"] / folder_name / f"{file_id}.jpg"
 
-                        for landmark_id, (x, y) in enumerate(landmarks):
-                            image = cv2.circle(image, (x, y), radius=3, color=colors[landmark_id], thickness=3)
-
-                        x_min, y_min, x_max, y_max = annotation["bbox"]
-
-                        x_min = np.clip(x_min, 0, x_max - 1)
-                        y_min = np.clip(y_min, 0, y_max - 1)
-
-                        image = cv2.rectangle(image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2)
-
-                        (hparams["output_vis_path"] / folder_name).mkdir(exist_ok=True, parents=True)
-                        result_path = hparams["output_vis_path"] / folder_name / f"{file_id}.jpg"
-
-                        cv2.imwrite(str(result_path), cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+                    cv2.imwrite(str(result_path), cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
 
 if __name__ == "__main__":
