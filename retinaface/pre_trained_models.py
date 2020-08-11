@@ -1,6 +1,5 @@
 from collections import namedtuple
 
-from torch import nn
 from torch.utils import model_zoo
 
 from retinaface.predict_single import Model
@@ -15,7 +14,7 @@ models = {
 }
 
 
-def get_model(model_name: str, max_size: int, device: str = "cpu") -> nn.Module:
+def get_model(model_name: str, max_size: int, device: str = "cpu") -> Model:
     model = models[model_name].model(max_size=max_size, device=device)
     state_dict = model_zoo.load_url(models[model_name].url, progress=True, map_location="cpu")
 
