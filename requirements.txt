@@ -4,4 +4,3 @@ numpy
 pillow
 streamlit
 torch
-torchvision
