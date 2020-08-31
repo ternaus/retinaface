@@ -54,5 +54,5 @@ def vis_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.
         x_min = np.clip(x_min, 0, x_max - 1)
         y_min = np.clip(y_min, 0, y_max - 1)
 
-        vis_image = cv2.rectangle(image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2)
+        vis_image = cv2.rectangle(vis_image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2)
     return vis_image
