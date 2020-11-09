@@ -11,6 +11,7 @@ import torch.nn.parallel
 import torch.utils.data
 import torch.utils.data.distributed
 import yaml
+from PIL import Image, UnidentifiedImageError
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
@@ -59,8 +60,7 @@ class InferenceDataset(Dataset):
     def __getitem__(self, idx: int) -> Optional[Dict[str, Any]]:
         image_path = self.file_paths[idx]
 
-        image = cv2.imread(str(image_path))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = np.array(Image.open(image_path))
 
         image_height, image_width = image.shape[:2]
 
@@ -180,6 +180,17 @@ def process_predictions(
     return result
 
 
+def check_if_image(file_list: List[Path]) -> List[Path]:
+    result: List[Path] = []
+    for file_path in tqdm(file_list):
+        try:
+            Image.open(file_path)
+        except UnidentifiedImageError:
+            continue
+        result += [file_path]
+    return result
+
+
 def main():
     args = get_args()
     torch.distributed.init_process_group(backend="nccl")
@@ -228,8 +239,8 @@ def main():
 
     file_paths = []
 
-    for regexp in ["*.jpg", "*.png", "*.jpeg", "*.JPG"]:
-        file_paths += sorted([x for x in tqdm(args.input_path.rglob(regexp))])
+    for regexp in ["*"]:
+        file_paths += check_if_image([x for x in args.input_path.rglob(regexp)])
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 

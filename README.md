@@ -1,4 +1,5 @@
 # Retinaface
+[![DOI](https://zenodo.org/badge/280950959.svg)](https://zenodo.org/badge/latestdoi/280950959)
 
 ![https://habrastorage.org/webt/uj/ff/vx/ujffvxxpzixwlmae8gyh7jylftq.jpeg](https://habrastorage.org/webt/uj/ff/vx/ujffvxxpzixwlmae8gyh7jylftq.jpeg)
 
