@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Dict, List
 
 import torch
 import torch.nn.functional as F
@@ -14,7 +14,10 @@ def conv_bn(inp: int, oup: int, stride: int = 1, leaky: float = 0) -> nn.Sequent
 
 
 def conv_bn_no_relu(inp: int, oup: int, stride: int) -> nn.Sequential:
-    return nn.Sequential(nn.Conv2d(inp, oup, 3, stride, 1, bias=False), nn.BatchNorm2d(oup),)
+    return nn.Sequential(
+        nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
+        nn.BatchNorm2d(oup),
+    )
 
 
 def conv_bn1X1(inp: int, oup: int, stride: int, leaky: float = 0) -> nn.Sequential:

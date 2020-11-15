@@ -33,7 +33,6 @@ optimizer:
 
 trainer:
   type: pytorch_lightning.Trainer
-  early_stop_callback: False
   gpus: 4
   use_amp: True
   amp_level: O1
@@ -43,6 +42,7 @@ trainer:
   progress_bar_refresh_rate: 1
   benchmark: True
   precision: 16
+  sync_batchnorm: True
 
 scheduler:
   type: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts

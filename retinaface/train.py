@@ -1,25 +1,24 @@
 import argparse
 from collections import OrderedDict
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-import apex
 import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 import yaml
+from addict import Dict as Adict
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.metrics.map import recall_precision
-from pytorch_lightning.logging import WandbLogger
+from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 from torchvision.ops import nms
 
 from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
-from retinaface.utils import load_checkpoint
 
 
 def get_args():
@@ -30,42 +29,34 @@ def get_args():
 
 
 class RetinaFace(pl.LightningModule):
-    def __init__(self, hparams: Dict[str, Any]):
+    def __init__(self, config: Adict[str, Any]):
         super().__init__()
-        self.hparams = hparams
+        self.config = config
 
-        self.prior_box = object_from_dict(self.hparams["prior_box"], image_size=self.hparams["image_size"])
-        self.model = object_from_dict(self.hparams["model"])
-        corrections: Dict[str, str] = {"model.": ""}
+        self.prior_box = object_from_dict(self.config.prior_box, image_size=self.config.image_size)
+        self.model = object_from_dict(self.config.model)
 
-        if "weights" in self.hparams:
-            checkpoint = load_checkpoint(file_path=self.hparams["weights"], rename_in_layers=corrections)
-            self.model.load_state_dict(checkpoint["state_dict"])
+        self.loss_weights = self.config.loss_weights
 
-        if hparams["sync_bn"]:
-            self.model = apex.parallel.convert_syncbn_model(self.model)
+        self.loss = object_from_dict(self.config.loss, priors=self.prior_box)
 
-        self.loss_weights = self.hparams["loss_weights"]
+    def setup(self, state=0):  # pylint: disable=W0613
+        self.preproc = Preproc(img_dim=self.config.image_size[0])
 
-        self.loss = object_from_dict(self.hparams["loss"], priors=self.prior_box)
-
-    def setup(self, state: int = 0) -> None:
-        self.preproc = Preproc(img_dim=self.hparams["image_size"][0])
-
-    def forward(self, batch: torch.Tensor) -> torch.Tensor:
+    def forward(self, batch):
         return self.model(batch)
 
     def train_dataloader(self):
         return DataLoader(
             FaceDetectionDataset(
-                label_path=self.hparams["train_annotation_path"],
-                image_path=self.hparams["train_image_path"],
-                transform=from_dict(self.hparams["train_aug"]),
+                label_path=self.config.train_annotation_path,
+                image_path=self.config.train_image_path,
+                transform=from_dict(self.config.train_aug),
                 preproc=self.preproc,
-                rotate90=self.hparams["train_parameters"]["rotate90"],
+                rotate90=self.config.train_parameters.rotate90,
             ),
-            batch_size=self.hparams["train_parameters"]["batch_size"],
-            num_workers=self.hparams["num_workers"],
+            batch_size=self.config.train_parameters.batch_size,
+            num_workers=self.config.num_workers,
             shuffle=True,
             pin_memory=True,
             drop_last=False,
@@ -75,14 +66,14 @@ class RetinaFace(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             FaceDetectionDataset(
-                label_path=self.hparams["val_annotation_path"],
-                image_path=self.hparams["val_image_path"],
-                transform=from_dict(self.hparams["val_aug"]),
+                label_path=self.config.val_annotation_path,
+                image_path=self.config.val_image_path,
+                transform=from_dict(self.config.val_aug),
                 preproc=self.preproc,
-                rotate90=self.hparams["train_parameters"]["rotate90"],
+                rotate90=self.config.train_parameters.rotate90,
             ),
-            batch_size=self.hparams["val_parameters"]["batch_size"],
-            num_workers=self.hparams["num_workers"],
+            batch_size=self.config.val_parameters.batch_size,
+            num_workers=self.config.num_workers,
             shuffle=False,
             pin_memory=True,
             drop_last=True,
@@ -91,15 +82,15 @@ class RetinaFace(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = object_from_dict(
-            self.hparams["optimizer"], params=[x for x in self.model.parameters() if x.requires_grad]
+            self.config.optimizer, params=[x for x in self.model.parameters() if x.requires_grad]
         )
 
-        scheduler = object_from_dict(self.hparams["scheduler"], optimizer=optimizer)
+        scheduler = object_from_dict(self.config.scheduler, optimizer=optimizer)
 
         self.optimizers = [optimizer]
         return self.optimizers, [scheduler]
 
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+    def training_step(self, batch, batch_idx):  # pylint: disable=W0613
         images = batch["image"]
         targets = batch["annotation"]
 
@@ -113,27 +104,15 @@ class RetinaFace(pl.LightningModule):
             + self.loss_weights["landmarks"] * loss_landmarks
         )
 
-        logs = {
-            "classification": loss_classification,
-            "localization": loss_localization,
-            "landmarks": loss_landmarks,
-            "train_loss": total_loss,
-            "lr": self._get_current_lr(),
-        }
+        self.log("train_classification", loss_classification, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("train_localization", loss_localization, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("train_landmarks", loss_landmarks, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("train_loss", total_loss, on_step=True, on_epoch=True, logger=True, prog_bar=True)
+        self.log("lr", self._get_current_lr(), on_step=True, on_epoch=True, logger=True, prog_bar=True)
 
-        return OrderedDict(
-            {
-                "loss": total_loss,
-                "progress_bar": {
-                    "train_loss": total_loss,
-                    "classification": loss_classification,
-                    "localization": loss_localization,
-                },
-                "log": logs,
-            }
-        )
+        return total_loss
 
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+    def validation_step(self, batch, batch_idx):  # pylint: disable=W0613
         images = batch["image"]
 
         image_height = images.shape[2]
@@ -155,7 +134,7 @@ class RetinaFace(pl.LightningModule):
 
         for batch_id in range(batch_size):
             boxes = decode(
-                location.data[batch_id], self.prior_box.to(images.device), self.hparams["test_parameters"]["variance"]
+                location.data[batch_id], self.prior_box.to(images.device), self.config.test_parameters.variance
             )
             scores = confidence[batch_id][:, 1]
 
@@ -166,7 +145,7 @@ class RetinaFace(pl.LightningModule):
             boxes *= scale
 
             # do NMS
-            keep = nms(boxes, scores, self.hparams["val_parameters"]["iou_threshold"])
+            keep = nms(boxes, scores, self.config.val_parameters.iou_threshold)
             boxes = boxes[keep, :].cpu().numpy()
 
             if boxes.shape[0] == 0:
@@ -215,7 +194,7 @@ class RetinaFace(pl.LightningModule):
 
         return OrderedDict({"predictions": predictions_coco, "gt": gt_coco})
 
-    def validation_epoch_end(self, outputs: List) -> Dict[str, Any]:
+    def validation_epoch_end(self, outputs: List) -> None:
         result_predictions: List[dict] = []
         result_gt: List[dict] = []
 
@@ -225,11 +204,10 @@ class RetinaFace(pl.LightningModule):
 
         _, _, average_precision = recall_precision(result_gt, result_predictions, 0.5)
 
-        logs = {"epoch": self.trainer.current_epoch, "mAP@0.5": average_precision}
+        self.log("epoch", self.trainer.current_epoch, on_step=False, on_epoch=True, logger=True)
+        self.log("val_loss", average_precision, on_step=False, on_epoch=True, logger=True)
 
-        return {"val_loss": average_precision, "log": logs}
-
-    def _get_current_lr(self) -> torch.Tensor:
+    def _get_current_lr(self) -> torch.Tensor:  # type: ignore
         lr = [x["lr"] for x in self.optimizers[0].param_groups][0]
         return torch.from_numpy(np.array([lr]))[0].to(self.device)
 
@@ -238,16 +216,16 @@ def main():
     args = get_args()
 
     with open(args.config_path) as f:
-        hparams = yaml.load(f, Loader=yaml.SafeLoader)
+        config = Adict(yaml.load(f, Loader=yaml.SafeLoader))
 
-    pipeline = RetinaFace(hparams)
+    pipeline = RetinaFace(config)
 
-    Path(hparams["checkpoint_callback"]["filepath"]).mkdir(exist_ok=True, parents=True)
+    Path(config.checkpoint_callback.filepath).mkdir(exist_ok=True, parents=True)
 
     trainer = object_from_dict(
-        hparams["trainer"],
-        logger=WandbLogger(hparams["experiment_name"]),
-        checkpoint_callback=object_from_dict(hparams["checkpoint_callback"]),
+        config.trainer,
+        logger=WandbLogger(config.experiment_name),
+        checkpoint_callback=object_from_dict(config.checkpoint_callback),
     )
 
     trainer.fit(pipeline)

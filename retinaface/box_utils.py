@@ -5,7 +5,8 @@ import torch
 
 
 def point_form(boxes: torch.Tensor) -> torch.Tensor:
-    """Convert prior_boxes to (x_min, y_min, x_max, y_max) representation for comparison to point form ground truth data.
+    """Convert prior_boxes to (x_min, y_min, x_max, y_max) representation for comparison
+    to point form ground truth data.
 
     Args:
         boxes: center-size default boxes from priorbox layers.
@@ -26,7 +27,7 @@ def center_size(boxes: torch.Tensor) -> torch.Tensor:
 
 
 def intersect(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
-    """ We resize both tensors to [A,B,2] without new malloc:
+    """We resize both tensors to [A,B,2] without new malloc:
     [A, 2] -> [A, 1, 2] -> [A, B, 2]
     [B, 2] -> [1, B, 2] -> [A, B, 2]
     Then we compute the area of intersect between box_a and box_b.
@@ -125,7 +126,7 @@ def match(
     best_prior_idx_filter.squeeze_(1)
     best_prior_overlap.squeeze_(1)
     best_truth_overlap.index_fill_(0, best_prior_idx_filter, 2)  # ensure best prior
-    # TODO refactor: index  best_prior_idx with long tensor
+
     # ensure every gt matches with its prior of max overlap
     for j in range(best_prior_idx.size(0)):  # 判别此anchor是预测哪一个boxes
         best_truth_idx[best_prior_idx[j]] = j

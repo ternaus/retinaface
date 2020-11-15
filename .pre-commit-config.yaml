@@ -1,7 +1,12 @@
 exclude: _pb2\.py$
 repos:
+- repo: https://github.com/pre-commit/mirrors-isort
+  rev: f0001b2  # Use the revision sha / tag you want to point at
+  hooks:
+    - id: isort
+      args: ["--profile", "black"]
 - repo: https://github.com/psf/black
-  rev: 19.10b0
+  rev: 20.8b1
   hooks:
     - id: black
 - repo: https://github.com/asottile/yesqa
@@ -26,11 +31,19 @@ repos:
     - id: trailing-whitespace
     - id: flake8
     - id: requirements-txt-fixer
+-   repo: https://github.com/pre-commit/mirrors-pylint
+    rev: d230ffd
+    hooks:
+    -   id: pylint
+        args:
+        - --max-line-length=119
+        - --ignore-imports=yes
+        - -d duplicate-code
 - repo: https://github.com/asottile/pyupgrade
-  rev: v1.13.0
+  rev: v2.7.3
   hooks:
   - id: pyupgrade
-    args: ['--py36-plus']
+    args: ['--py37-plus']
 - repo: https://github.com/pre-commit/pygrep-hooks
   rev: v1.5.1
   hooks:
