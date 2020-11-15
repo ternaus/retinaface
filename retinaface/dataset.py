@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple
 
 import albumentations as albu
 import numpy as np
@@ -15,18 +15,15 @@ from retinaface.data_augment import Preproc
 class FaceDetectionDataset(data.Dataset):
     def __init__(
         self,
-        label_path: str,
-        image_path: Optional[str],
+        label_path: Path,
+        image_path: Path,
         transform: albu.Compose,
         preproc: Preproc,
         rotate90: bool = False,
     ) -> None:
         self.preproc = preproc
 
-        if image_path is None:
-            self.image_path = image_path
-        else:
-            self.image_path = Path(image_path)
+        self.image_path = Path(image_path)
 
         self.transform = transform
         self.rotate90 = rotate90
@@ -34,7 +31,7 @@ class FaceDetectionDataset(data.Dataset):
         with open(label_path) as f:
             self.labels = json.load(f)
 
-        self.labels = [x for x in self.labels if Path(x["file_path"]).exists()]
+        self.labels = [x for x in self.labels if (image_path / x["file_name"]).exists()]
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -44,10 +41,7 @@ class FaceDetectionDataset(data.Dataset):
 
         file_name = labels["file_name"]
 
-        if self.image_path is None:
-            image = load_rgb(labels["file_path"])
-        else:
-            image = load_rgb(self.image_path / file_name)
+        image = load_rgb(self.image_path / file_name)
 
         # annotations will have the format
         # 4: box, 10 landmarks, 1: landmarks / no landmarks

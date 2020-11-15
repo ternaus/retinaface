@@ -1,4 +1,5 @@
 import argparse
+import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List
@@ -20,6 +21,12 @@ from retinaface.box_utils import decode
 from retinaface.data_augment import Preproc
 from retinaface.dataset import FaceDetectionDataset, detection_collate
 
+TRAIN_IMAGE_PATH = Path(os.environ["TRAIN_IMAGE_PATH"])
+VAL_IMAGE_PATH = Path(os.environ["VAL_IMAGE_PATH"])
+
+TRAIN_LABEL_PATH = Path(os.environ["TRAIN_LABEL_PATH"])
+VAL_LABEL_PATH = Path(os.environ["VAL_LABEL_PATH"])
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -29,7 +36,7 @@ def get_args():
 
 
 class RetinaFace(pl.LightningModule):
-    def __init__(self, config: Adict[str, Any]):
+    def __init__(self, config):
         super().__init__()
         self.config = config
 
@@ -49,8 +56,8 @@ class RetinaFace(pl.LightningModule):
     def train_dataloader(self):
         return DataLoader(
             FaceDetectionDataset(
-                label_path=self.config.train_annotation_path,
-                image_path=self.config.train_image_path,
+                label_path=TRAIN_LABEL_PATH,
+                image_path=TRAIN_IMAGE_PATH,
                 transform=from_dict(self.config.train_aug),
                 preproc=self.preproc,
                 rotate90=self.config.train_parameters.rotate90,
@@ -66,8 +73,8 @@ class RetinaFace(pl.LightningModule):
     def val_dataloader(self):
         return DataLoader(
             FaceDetectionDataset(
-                label_path=self.config.val_annotation_path,
-                image_path=self.config.val_image_path,
+                label_path=VAL_LABEL_PATH,
+                image_path=VAL_IMAGE_PATH,
                 transform=from_dict(self.config.val_aug),
                 preproc=self.preproc,
                 rotate90=self.config.train_parameters.rotate90,

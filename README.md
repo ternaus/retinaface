@@ -16,7 +16,7 @@ IT added a set of functionality:
  * Syncronized BatchNorm
  * Support for various loggers like [W&B](https://www.wandb.com/) or [Neptune.ml](https://neptune.ai/)
 
-### Hyperparameters are fedined in config file
+### Hyperparameters are defined in the config file
 
 Hyperparameters that were scattered  across the code moved to the config at [retinadace/config](retinadace/config)
 
@@ -102,6 +102,20 @@ You can convert the default labels of the WiderFaces to the json of the propper 
 
 
 ## Training
+
+### Define config
+Example configs could be found at [retinaface/configs](retinaface/configs)
+
+### Define environmental variables
+
+```bash
+export TRAIN_IMAGE_PATH=<path to train images>
+export VAL_IMAGE_PATH=<path to validation images>
+export TRAIN_LABEL_PATH=<path to train annotations>
+export VAL_LABEL_PATH=<path to val annotations>
+```
+
+### Run training script
 
 ```
 python retinaface/train.py -h
