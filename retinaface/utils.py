@@ -1,41 +1,9 @@
-import re
 from pathlib import Path
-from typing import Union, Optional, Any, Dict, List
+from typing import Any, Dict, List
 
 import cv2
 import numpy as np
-import torch
-
-
-def load_checkpoint(file_path: Union[Path, str], rename_in_layers: Optional[dict] = None) -> Dict[str, Any]:
-    """Loads PyTorch checkpoint, optionally renaming layer names.
-    Args:
-        file_path: path to the torch checkpoint.
-        rename_in_layers: {from_name: to_name}
-            ex: {"model.0.": "",
-                 "model.": ""}
-    Returns:
-    """
-    checkpoint = torch.load(file_path, map_location=lambda storage, loc: storage)
-
-    if rename_in_layers is not None:
-        model_state_dict = checkpoint["state_dict"]
-
-        result = {}
-        for key, value in model_state_dict.items():
-            for key_r, value_r in rename_in_layers.items():
-                key = re.sub(key_r, value_r, key)
-
-            result[key] = value
-
-        checkpoint["state_dict"] = result
-
-    return checkpoint
-
-
-def tensor_from_rgb_image(image: np.ndarray) -> torch.Tensor:
-    image = np.transpose(image, (2, 0, 1))
-    return torch.from_numpy(image)
+from PIL import Image
 
 
 def vis_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.ndarray:
@@ -56,3 +24,38 @@ def vis_annotations(image: np.ndarray, annotations: List[Dict[str, Any]]) -> np.
 
         vis_image = cv2.rectangle(vis_image, (x_min, y_min), (x_max, y_max), color=(0, 255, 0), thickness=2)
     return vis_image
+
+
+def filer_labels(labels: List[Dict], image_path: Path, min_size: int) -> List[Dict]:
+    result: List[Dict[str, Any]] = []
+
+    print("Before = ", len(labels))
+
+    for label in labels:
+        if not (image_path / label["file_name"]).exists():
+            continue
+
+        temp: List[Dict[str, Any]] = []
+
+        width, height = Image.open(image_path / label["file_name"]).size
+
+        for annotation in label["annotations"]:
+            x_min, y_min, x_max, y_max = annotation["bbox"]
+
+            x_min = np.clip(x_min, 0, width - 1)
+            y_min = np.clip(y_min, 0, height - 1)
+            x_max = np.clip(x_max, x_min + 1, width - 1)
+            y_max = np.clip(y_max, y_min + 1, height - 1)
+
+            annotation["bbox"] = x_min, y_min, x_max, y_max
+
+            if x_max - x_min >= min_size and y_max - y_min >= min_size:
+                temp += [annotation]
+
+        if len(temp) > 0:
+            label["annotation"] = temp
+            result += [label]
+
+    print("After = ", len(result))
+
+    return result

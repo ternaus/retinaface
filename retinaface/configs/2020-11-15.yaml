@@ -1,14 +1,8 @@
 ---
 seed: 1984
 
-num_workers: 12
+num_workers: 1
 experiment_name: "2020-11-15"
-#
-#train_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_train/images
-#val_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_val/images
-#
-#train_annotation_path: /home/vladimir/workspace/data3/WiderFace/train/label.json
-#val_annotation_path: /home/vladimir/workspace/data3/WiderFace/val/label.json
 
 num_classes: 2
 
@@ -29,7 +23,7 @@ optimizer:
 
 trainer:
   type: pytorch_lightning.Trainer
-  gpus: 4
+  gpus: 1
   amp_level: O1
   max_epochs: 150
   distributed_backend: ddp
@@ -47,6 +41,7 @@ scheduler:
 train_parameters:
   batch_size: 4
   rotate90: True
+  box_min_size: 5
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
@@ -60,6 +55,7 @@ val_parameters:
   batch_size: 10
   iou_threshold: 0.4
   rotate90: True
+  box_min_size: 5
 
 loss:
   type: retinaface.multibox_loss.MultiBoxLoss
@@ -78,7 +74,8 @@ prior_box:
   steps: [8, 16, 32]
   clip: False
 
-image_size: [1024, 1024]
+#image_size: [1024, 1024]
+image_size: [512, 512]
 
 loss_weights:
   localization: 2

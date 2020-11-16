@@ -5,11 +5,12 @@ from typing import Any, Dict, List, Tuple
 import albumentations as albu
 import numpy as np
 import torch
+from iglovikov_helper_functions.dl.pytorch.utils import tensor_from_rgb_image
 from iglovikov_helper_functions.utils.image_utils import load_rgb
-from pytorch_toolbelt.utils.torch_utils import tensor_from_rgb_image
 from torch.utils import data
 
 from retinaface.data_augment import Preproc
+from retinaface.utils import filer_labels
 
 
 class FaceDetectionDataset(data.Dataset):
@@ -20,6 +21,7 @@ class FaceDetectionDataset(data.Dataset):
         transform: albu.Compose,
         preproc: Preproc,
         rotate90: bool = False,
+        box_min_size: int = 5,
     ) -> None:
         self.preproc = preproc
 
@@ -29,9 +31,11 @@ class FaceDetectionDataset(data.Dataset):
         self.rotate90 = rotate90
 
         with open(label_path) as f:
-            self.labels = json.load(f)
+            labels = json.load(f)
 
-        self.labels = [x for x in self.labels if (image_path / x["file_name"]).exists()]
+        self.labels = filer_labels(labels, image_path, min_size=box_min_size)
+
+        print("NUm labels = ", len(self.labels))
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -43,21 +47,26 @@ class FaceDetectionDataset(data.Dataset):
 
         image = load_rgb(self.image_path / file_name)
 
+        image_height, image_width = image.shape[:2]
+
         # annotations will have the format
         # 4: box, 10 landmarks, 1: landmarks / no landmarks
         num_annotations = 4 + 10 + 1
         annotations = np.zeros((0, num_annotations))
 
-        image_height, image_width = image.shape[:2]
-
         for label in labels["annotations"]:
             annotation = np.zeros((1, num_annotations))
             x_min, y_min, x_max, y_max = label["bbox"]
 
-            annotation[0, 0] = np.clip(x_min, 0, image_width - 1)
-            annotation[0, 1] = np.clip(y_min, 0, image_height - 1)
-            annotation[0, 2] = np.clip(x_max, x_min + 1, image_width - 1)
-            annotation[0, 3] = np.clip(y_max, y_min + 1, image_height - 1)
+            annotation[0, 0] = x_min
+            annotation[0, 1] = y_min
+            annotation[0, 2] = x_max
+            annotation[0, 3] = y_max
+
+            assert 0 <= x_min < x_max < image_width, (x_min, x_max, image_width)
+            assert 0 <= y_min < y_max < image_height, (y_min, y_max, image_height)
+
+            # annotation[0, :4] = label["bbox"]
 
             if "landmarks" in label and label["landmarks"]:
                 landmarks = np.array(label["landmarks"])

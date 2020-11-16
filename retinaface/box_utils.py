@@ -131,9 +131,9 @@ def match(
     for j in range(best_prior_idx.size(0)):  # 判别此anchor是预测哪一个boxes
         best_truth_idx[best_prior_idx[j]] = j
 
-    matches = box_gt[best_truth_idx]  # Shape: [num_priors, 4] 此处为每一个anchor对应的bbox取出来
-    labels = labels_gt[best_truth_idx]  # Shape: [num_priors]      此处为每一个anchor对应的label取出来
-    labels[best_truth_overlap < threshold] = 0  # label as background   overlap<0.35的全部作为负样本
+    matches = box_gt[best_truth_idx]  # Shape: [num_priors, 4]
+    labels = labels_gt[best_truth_idx]  # Shape: [num_priors]
+    labels[best_truth_overlap < threshold] = 0  # label as background   overlap<0.35
     loc = encode(matches, priors, variances)
 
     matches_landm = landmarks_gt[best_truth_idx]
@@ -210,7 +210,9 @@ def decode(
     Return:
         decoded bounding box predictions
     """
-
+    print(priors.shape)
+    print(loc.shape)
+    print(variances)
     boxes = torch.cat(
         (
             priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
