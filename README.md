@@ -112,7 +112,7 @@ Example configs could be found at [retinaface/configs](retinaface/configs)
 export TRAIN_IMAGE_PATH=<path to train images>
 export VAL_IMAGE_PATH=<path to validation images>
 export TRAIN_LABEL_PATH=<path to train annotations>
-export VAL_LABEL_PATH=<path to val annotations>
+export VAL_LABEL_PATH=<path to validation annotations>
 ```
 
 ### Run training script

@@ -35,7 +35,7 @@ class FaceDetectionDataset(data.Dataset):
 
         self.labels = filer_labels(labels, image_path, min_size=box_min_size)
 
-        print("NUm labels = ", len(self.labels))
+        print("Num labels = ", len(self.labels))
 
     def __len__(self) -> int:
         return len(self.labels)
