@@ -35,8 +35,6 @@ class FaceDetectionDataset(data.Dataset):
 
         self.labels = filer_labels(labels, image_path, min_size=box_min_size)
 
-        print("Num labels = ", len(self.labels))
-
     def __len__(self) -> int:
         return len(self.labels)
 
@@ -47,8 +45,6 @@ class FaceDetectionDataset(data.Dataset):
 
         image = load_rgb(self.image_path / file_name)
 
-        image_height, image_width = image.shape[:2]
-
         # annotations will have the format
         # 4: box, 10 landmarks, 1: landmarks / no landmarks
         num_annotations = 4 + 10 + 1
@@ -56,17 +52,7 @@ class FaceDetectionDataset(data.Dataset):
 
         for label in labels["annotations"]:
             annotation = np.zeros((1, num_annotations))
-            x_min, y_min, x_max, y_max = label["bbox"]
-
-            annotation[0, 0] = x_min
-            annotation[0, 1] = y_min
-            annotation[0, 2] = x_max
-            annotation[0, 3] = y_max
-
-            assert 0 <= x_min < x_max < image_width, (x_min, x_max, image_width)
-            assert 0 <= y_min < y_max < image_height, (y_min, y_max, image_height)
-
-            # annotation[0, :4] = label["bbox"]
+            annotation[0, :4] = label["bbox"]
 
             if "landmarks" in label and label["landmarks"]:
                 landmarks = np.array(label["landmarks"])

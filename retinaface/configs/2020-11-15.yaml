@@ -74,8 +74,7 @@ prior_box:
   steps: [8, 16, 32]
   clip: False
 
-#image_size: [1024, 1024]
-image_size: [512, 512]
+image_size: [1024, 1024]
 
 loss_weights:
   localization: 2

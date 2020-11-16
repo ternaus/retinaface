@@ -210,9 +210,6 @@ def decode(
     Return:
         decoded bounding box predictions
     """
-    print(priors.shape)
-    print(loc.shape)
-    print(variances)
     boxes = torch.cat(
         (
             priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
