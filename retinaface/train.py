@@ -66,7 +66,6 @@ class RetinaFace(pl.LightningModule):
                 transform=from_dict(self.config.train_aug),
                 preproc=self.preproc,
                 rotate90=self.config.train_parameters.rotate90,
-                box_min_size=self.config.train_parameters.box_min_size,
             ),
             batch_size=self.config.train_parameters.batch_size,
             num_workers=self.config.num_workers,
@@ -86,7 +85,6 @@ class RetinaFace(pl.LightningModule):
                 transform=from_dict(self.config.val_aug),
                 preproc=self.preproc,
                 rotate90=self.config.val_parameters.rotate90,
-                box_min_size=self.config.val_parameters.box_min_size,
             ),
             batch_size=self.config.val_parameters.batch_size,
             num_workers=self.config.num_workers,
@@ -235,6 +233,8 @@ def main():
 
     with open(args.config_path) as f:
         config = Adict(yaml.load(f, Loader=yaml.SafeLoader))
+
+    pl.trainer.seed_everything(config.seed)
 
     pipeline = RetinaFace(config)
 

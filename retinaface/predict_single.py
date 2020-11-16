@@ -6,6 +6,7 @@ from typing import Dict, List, Union
 import albumentations as A
 import numpy as np
 import torch
+from iglovikov_helper_functions.dl.pytorch.utils import tensor_from_rgb_image
 from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
 from torch.nn import functional as F
 from torchvision.ops import nms
@@ -13,7 +14,6 @@ from torchvision.ops import nms
 from retinaface.box_utils import decode, decode_landm
 from retinaface.network import RetinaFace
 from retinaface.prior_box import priorbox
-from retinaface.utils import tensor_from_rgb_image
 
 
 class Model:

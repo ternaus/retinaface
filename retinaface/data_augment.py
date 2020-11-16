@@ -6,19 +6,20 @@ import numpy as np
 from retinaface.box_utils import matrix_iof
 
 
-def _crop(
+def random_crop(
     image: np.ndarray, boxes: np.ndarray, labels: np.ndarray, landm: np.ndarray, img_dim: int
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
+    """
+    if random.uniform(0, 1) <= 0.2:
+        scale = 1.0
+    else:
+        scale = random.uniform(0.3, 1.0)
+    """
     height, width = image.shape[:2]
     pad_image_flag = True
 
     for _ in range(250):
-        """
-        if random.uniform(0, 1) <= 0.2:
-            scale = 1.0
-        else:
-            scale = random.uniform(0.3, 1.0)
-        """
+
         pre_scales = [0.3, 0.45, 0.6, 0.8, 1.0]
         scale = random.choice(pre_scales)
         short_side = min(width, height)
@@ -80,7 +81,9 @@ def _crop(
     return image, boxes, labels, landm, pad_image_flag
 
 
-def _mirror(image: np.ndarray, boxes: np.ndarray, landms: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def random_horizontal_flip(
+    image: np.ndarray, boxes: np.ndarray, landms: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     width = image.shape[1]
     if random.randrange(2):
         image = image[:, ::-1]
@@ -124,10 +127,12 @@ class Preproc:
         landmarks = targets[:, 4:-1].copy()
         labels = targets[:, -1:].copy()
 
-        image_t, boxes_t, labels_t, landmarks_t, pad_image_flag = _crop(image, boxes, labels, landmarks, self.img_dim)
+        image_t, boxes_t, labels_t, landmarks_t, pad_image_flag = random_crop(
+            image, boxes, labels, landmarks, self.img_dim
+        )
 
         image_t = _pad_to_square(image_t, pad_image_flag)
-        image_t, boxes_t, landmarks_t = _mirror(image_t, boxes_t, landmarks_t)
+        image_t, boxes_t, landmarks_t = random_horizontal_flip(image_t, boxes_t, landmarks_t)
         height, width = image_t.shape[:2]
 
         boxes_t[:, 0::2] = boxes_t[:, 0::2] / width

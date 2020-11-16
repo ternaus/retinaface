@@ -14,7 +14,6 @@ model:
   in_channels: 256
   out_channels: 256
 
-
 optimizer:
   type: torch.optim.SGD
   lr: 0.001
@@ -39,9 +38,8 @@ scheduler:
   T_mult: 2
 
 train_parameters:
-  batch_size: 4
+  batch_size: 6
   rotate90: True
-  box_min_size: 5
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint

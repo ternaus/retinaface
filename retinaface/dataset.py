@@ -10,7 +10,6 @@ from iglovikov_helper_functions.utils.image_utils import load_rgb
 from torch.utils import data
 
 from retinaface.data_augment import Preproc
-from retinaface.utils import filer_labels
 
 
 class FaceDetectionDataset(data.Dataset):
@@ -21,7 +20,6 @@ class FaceDetectionDataset(data.Dataset):
         transform: albu.Compose,
         preproc: Preproc,
         rotate90: bool = False,
-        box_min_size: int = 5,
     ) -> None:
         self.preproc = preproc
 
@@ -33,7 +31,7 @@ class FaceDetectionDataset(data.Dataset):
         with open(label_path) as f:
             labels = json.load(f)
 
-        self.labels = filer_labels(labels, image_path, min_size=box_min_size)
+        self.labels = [x for x in labels if (image_path / x["file_name"]).exists()]
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -45,6 +43,8 @@ class FaceDetectionDataset(data.Dataset):
 
         image = load_rgb(self.image_path / file_name)
 
+        image_height, image_width = image.shape[:2]
+
         # annotations will have the format
         # 4: box, 10 landmarks, 1: landmarks / no landmarks
         num_annotations = 4 + 10 + 1
@@ -52,7 +52,15 @@ class FaceDetectionDataset(data.Dataset):
 
         for label in labels["annotations"]:
             annotation = np.zeros((1, num_annotations))
-            annotation[0, :4] = label["bbox"]
+
+            x_min, y_min, x_max, y_max = label["bbox"]
+
+            x_min = np.clip(x_min, 0, image_width - 1)
+            y_min = np.clip(y_min, 0, image_height - 1)
+            x_max = np.clip(x_max, x_min + 1, image_width - 1)
+            y_max = np.clip(y_max, y_min, image_height - 1)
+
+            annotation[0, :4] = x_min, y_min, x_max, y_max
 
             if "landmarks" in label and label["landmarks"]:
                 landmarks = np.array(label["landmarks"])
