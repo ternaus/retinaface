@@ -1,7 +1,7 @@
 ---
 seed: 1984
 
-num_workers: 1
+num_workers: 4
 experiment_name: "2020-11-15"
 
 num_classes: 2
@@ -23,7 +23,7 @@ optimizer:
 
 trainer:
   type: pytorch_lightning.Trainer
-  gpus: 1
+  gpus: 4
   amp_level: O1
   max_epochs: 150
   distributed_backend: ddp
