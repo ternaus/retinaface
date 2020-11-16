@@ -18,7 +18,7 @@ from iglovikov_helper_functions.dl.pytorch.utils import (
     tensor_from_rgb_image,
 )
 from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -183,17 +183,6 @@ def process_predictions(
     return result
 
 
-def check_if_image(file_list: List[Path]) -> List[Path]:
-    result: List[Path] = []
-    for file_path in tqdm(file_list):
-        try:
-            Image.open(file_path)
-        except UnidentifiedImageError:
-            continue
-        result += [file_path]
-    return result
-
-
 def main():
     args = get_args()
     torch.distributed.init_process_group(backend="nccl")
@@ -240,10 +229,7 @@ def main():
         model, device_ids=[args.local_rank], output_device=args.local_rank
     )
 
-    file_paths = []
-
-    for regexp in ["*"]:
-        file_paths += check_if_image(list(args.input_path.rglob(regexp)))
+    file_paths = list(args.input_path.rglob("*.jpg"))
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 
