@@ -2,5 +2,4 @@ albumentations
 iglovikov_helper_functions
 numpy
 pillow
-streamlit
 torch

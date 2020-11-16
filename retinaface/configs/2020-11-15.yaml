@@ -1,18 +1,8 @@
 ---
 seed: 1984
 
-sync_bn: True
-
-num_workers: 12
-experiment_name: "2020-07-20"
-
-train_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_train/images
-val_image_path: /home/vladimir/workspace/data3/WiderFace/WIDER_val/images
-
-train_annotation_path: /home/vladimir/workspace/data3/WiderFace/train/label.json
-val_annotation_path: /home/vladimir/workspace/data3/WiderFace/val/label.json
-
-weights: 2020-07-19/epoch=149.ckpt
+num_workers: 4
+experiment_name: "2020-11-15"
 
 num_classes: 2
 
@@ -24,7 +14,6 @@ model:
   in_channels: 256
   out_channels: 256
 
-
 optimizer:
   type: torch.optim.SGD
   lr: 0.001
@@ -34,7 +23,6 @@ optimizer:
 trainer:
   type: pytorch_lightning.Trainer
   gpus: 4
-  use_amp: True
   amp_level: O1
   max_epochs: 150
   distributed_backend: ddp
@@ -50,12 +38,12 @@ scheduler:
   T_mult: 2
 
 train_parameters:
-  batch_size: 8
+  batch_size: 6
   rotate90: True
 
 checkpoint_callback:
   type: pytorch_lightning.callbacks.ModelCheckpoint
-  filepath: "2020-07-20"
+  filepath: "2020-11-15"
   monitor: val_loss
   verbose: True
   mode: max
@@ -65,6 +53,7 @@ val_parameters:
   batch_size: 10
   iou_threshold: 0.4
   rotate90: True
+  box_min_size: 5
 
 loss:
   type: retinaface.multibox_loss.MultiBoxLoss
@@ -83,7 +72,7 @@ prior_box:
   steps: [8, 16, 32]
   clip: False
 
-image_size: [840, 840]
+image_size: [1024, 1024]
 
 loss_weights:
   localization: 2
@@ -107,14 +96,14 @@ train_aug:
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.HueSaturationValue
         hue_shift_limit: 20
-        val_shift_limit: 0
+        val_shift_limit: 20
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.RandomGamma
         gamma_limit: [80, 120]
         p: 0.5
       - __class_fullname__: albumentations.augmentations.transforms.Resize
-        height: 840
-        width: 840
+        height: 1024
+        width: 1024
         p: 1
       - __class_fullname__: albumentations.augmentations.transforms.Normalize
         always_apply: false
@@ -137,8 +126,8 @@ val_aug:
     p: 1
     transforms:
       - __class_fullname__: albumentations.augmentations.transforms.Resize
-        height: 840
-        width: 840
+        height: 1024
+        width: 1024
         p: 1
       - __class_fullname__: albumentations.augmentations.transforms.Normalize
         always_apply: false

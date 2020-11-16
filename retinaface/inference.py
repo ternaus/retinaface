@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Union, Optional, Any
+from typing import Any, Dict, List, Optional, Union
 
 import albumentations as albu
 import cv2
@@ -11,10 +11,14 @@ import torch.nn.parallel
 import torch.utils.data
 import torch.utils.data.distributed
 import yaml
-from PIL import Image, UnidentifiedImageError
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
+from iglovikov_helper_functions.dl.pytorch.utils import (
+    state_dict_from_disk,
+    tensor_from_rgb_image,
+)
 from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
+from PIL import Image
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -22,8 +26,7 @@ from torchvision.ops import nms
 from tqdm import tqdm
 
 from retinaface.box_utils import decode, decode_landm
-from retinaface.utils import load_checkpoint, vis_annotations
-from retinaface.utils import tensor_from_rgb_image
+from retinaface.utils import vis_annotations
 
 
 def get_args():
@@ -180,17 +183,6 @@ def process_predictions(
     return result
 
 
-def check_if_image(file_list: List[Path]) -> List[Path]:
-    result: List[Path] = []
-    for file_path in tqdm(file_list):
-        try:
-            Image.open(file_path)
-        except UnidentifiedImageError:
-            continue
-        result += [file_path]
-    return result
-
-
 def main():
     args = get_args()
     torch.distributed.init_process_group(backend="nccl")
@@ -230,17 +222,14 @@ def main():
         model = model.half()
 
     corrections: Dict[str, str] = {"model.": ""}
-    checkpoint = load_checkpoint(file_path=args.weight_path, rename_in_layers=corrections)
-    model.load_state_dict(checkpoint["state_dict"])
+    state_dict = state_dict_from_disk(file_path=args.weight_path, rename_in_layers=corrections)
+    model.load_state_dict(state_dict)
 
     model = torch.nn.parallel.DistributedDataParallel(
         model, device_ids=[args.local_rank], output_device=args.local_rank
     )
 
-    file_paths = []
-
-    for regexp in ["*"]:
-        file_paths += check_if_image([x for x in args.input_path.rglob(regexp)])
+    file_paths = list(args.input_path.rglob("*.jpg"))
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 
