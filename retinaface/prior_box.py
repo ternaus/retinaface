@@ -5,10 +5,10 @@ from typing import List, Tuple
 import torch
 
 
-def priorbox(min_sizes: torch.Tensor, steps: torch.Tensor, clip: bool, image_size: Tuple[int, int]) -> torch.Tensor:
+def priorbox(min_sizes: List[List[int]], steps: List[int], clip: bool, image_size: Tuple[int, int]) -> torch.Tensor:
     feature_maps = [[ceil(image_size[0] / step), ceil(image_size[1] / step)] for step in steps]
 
-    anchors: List[List[float]] = []
+    anchors: List[float] = []
     for k, f in enumerate(feature_maps):
         t_min_sizes = min_sizes[k]
         for i, j in product(range(f[0]), range(f[1])):
