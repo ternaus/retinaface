@@ -16,6 +16,9 @@ from retinaface.network import RetinaFace
 from retinaface.prior_box import priorbox
 
 
+ROUNDING_DIGITS = 2
+
+
 class Model:
     def __init__(self, max_size: int = 960, device: str = "cpu") -> None:
         self.model = RetinaFace(
@@ -43,7 +46,7 @@ class Model:
         self.model.eval()
 
     def predict_jsons(
-        self, image: np.array, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
+            self, image: np.array, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
     ) -> List[Dict[str, Union[List, float]]]:
         with torch.no_grad():
             original_height, original_width = image.shape[:2]
@@ -87,7 +90,7 @@ class Model:
 
             # do NMS
             keep = nms(boxes, scores, nms_threshold)
-            boxes = boxes[keep, :].int()
+            boxes = boxes[keep, :]
 
             if boxes.shape[0] == 0:
                 return [{"bbox": [], "score": -1, "landmarks": []}]
@@ -103,8 +106,8 @@ class Model:
 
             resize_coeff = max(original_height, original_width) / self.max_size
 
-            boxes = (unpadded["bboxes"] * resize_coeff).astype(int)
-            landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff).astype(int)
+            boxes = (unpadded["bboxes"] * resize_coeff)
+            landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff)
 
             for box_id, bbox in enumerate(boxes):
                 x_min, y_min, x_max, y_max = bbox
@@ -123,9 +126,9 @@ class Model:
 
                 annotations += [
                     {
-                        "bbox": bbox.tolist(),
-                        "score": scores[box_id],
-                        "landmarks": landmarks[box_id].reshape(-1, 2).tolist(),
+                        "bbox": np.round(bbox.astype(float), ROUNDING_DIGITS).tolist(),
+                        "score": np.round(scores.astype(float), ROUNDING_DIGITS)[box_id],
+                        "landmarks": np.round(landmarks[box_id].astype(float), ROUNDING_DIGITS).reshape(-1, 2).tolist(),
                     }
                 ]
 

@@ -28,10 +28,10 @@ Todo:
 * Horizontal Flip is not implemented in Albumentations
 * Spatial transforms like rotations or transpose are not implemented yet.
 
-Color transforms are defined in the config.
+Color transforms defined in the config.
 
 ### Added mAP calculation for validation
-In order to track thr progress, mAP metric is calculated on validation.
+In order to track the progress, mAP metric is calculated on validation.
 
 ## Installation
 
@@ -102,6 +102,11 @@ You can convert the default labels of the WiderFaces to the json of the propper 
 
 
 ## Training
+### Install dependencies
+```
+pip install -r requirements.txt
+pip install -r requirements_dev.txt
+```
 
 ### Define config
 Example configs could be found at [retinaface/configs](retinaface/configs)
