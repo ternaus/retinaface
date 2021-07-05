@@ -29,6 +29,7 @@ class BboxHead(nn.Module):
         out = out.permute(0, 2, 3, 1).contiguous()
         return out.view(out.shape[0], -1, 4)
 
+
 class LandmarkHead(nn.Module):
     def __init__(self, in_channels: int = 512, num_anchors: int = 3):
         super().__init__()

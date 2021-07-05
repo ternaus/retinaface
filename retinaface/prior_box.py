@@ -1,13 +1,14 @@
 from itertools import product
 from math import ceil
+from typing import List, Tuple
 
 import torch
 
 
-def priorbox(min_sizes, steps, clip, image_size):
+def priorbox(min_sizes: torch.Tensor, steps: torch.Tensor, clip: bool, image_size: Tuple[int, int]) -> torch.Tensor:
     feature_maps = [[ceil(image_size[0] / step), ceil(image_size[1] / step)] for step in steps]
 
-    anchors = []
+    anchors: List[List[float]] = []
     for k, f in enumerate(feature_maps):
         t_min_sizes = min_sizes[k]
         for i, j in product(range(f[0]), range(f[1])):

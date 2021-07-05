@@ -143,17 +143,17 @@ def match(
     landmarks_t[batch_id] = landmarks_gt
 
 
-def encode(matched, priors, variances):
+def encode(matched: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> torch.Tensor:
     """Encode the variances from the priorbox layers into the ground truth boxes
-    we have matched (based on jaccard overlap) with the prior boxes.
+        we have matched (based on jaccard overlap) with the prior boxes.
     Args:
-        matched: (tensor) Coords of ground truth for each prior in point-form
+        matched: Coords of ground truth for each prior in point-form
             Shape: [num_priors, 4].
-        priors: (tensor) Prior boxes in center-offset form
+        priors: Prior boxes in center-offset form
             Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
+        variances: Variances of priorboxes
     Return:
-        encoded boxes (tensor), Shape: [num_priors, 4]
+        encoded boxes, Shape: [num_priors, 4]
     """
 
     # dist b/t match center and prior's center

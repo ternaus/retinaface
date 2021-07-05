@@ -15,7 +15,6 @@ from retinaface.box_utils import decode, decode_landm
 from retinaface.network import RetinaFace
 from retinaface.prior_box import priorbox
 
-
 ROUNDING_DIGITS = 2
 
 
@@ -42,11 +41,11 @@ class Model:
     def load_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> None:
         self.model.load_state_dict(state_dict)
 
-    def eval(self):
+    def eval(self) -> None:
         self.model.eval()
 
     def predict_jsons(
-            self, image: np.array, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
+        self, image: np.array, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
     ) -> List[Dict[str, Union[List, float]]]:
         with torch.no_grad():
             original_height, original_width = image.shape[:2]
@@ -106,8 +105,8 @@ class Model:
 
             resize_coeff = max(original_height, original_width) / self.max_size
 
-            boxes = (unpadded["bboxes"] * resize_coeff)
-            landmarks = (unpadded["keypoints"].reshape(-1, 10) * resize_coeff)
+            boxes = unpadded["bboxes"] * resize_coeff
+            landmarks = unpadded["keypoints"].reshape(-1, 10) * resize_coeff
 
             for box_id, bbox in enumerate(boxes):
                 x_min, y_min, x_max, y_max = bbox
@@ -128,7 +127,9 @@ class Model:
                     {
                         "bbox": np.round(bbox.astype(float), ROUNDING_DIGITS).tolist(),
                         "score": np.round(scores.astype(float), ROUNDING_DIGITS)[box_id],
-                        "landmarks": np.round(landmarks[box_id].astype(float), ROUNDING_DIGITS).reshape(-1, 2).tolist(),
+                        "landmarks": np.round(landmarks[box_id].astype(float), ROUNDING_DIGITS)
+                        .reshape(-1, 2)
+                        .tolist(),
                     }
                 ]
 
