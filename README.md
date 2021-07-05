@@ -188,3 +188,10 @@ python -m torch.distributed.launch --nproc_per_node=<num_gpus> retinaface/infere
 https://retinaface.herokuapp.com/
 
 Code for the web app: https://github.com/ternaus/retinaface_demo
+
+### Converting to ONNX
+The inference could be sped up on CPU by converting the model to ONNX.
+
+```
+Ex: python -m converters.to_onnx -m 1280 -o retinaface1280.onnx
+```

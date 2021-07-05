@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import albumentations as albu
 import cv2
@@ -13,12 +13,10 @@ import torch.utils.data.distributed
 import yaml
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
-from iglovikov_helper_functions.dl.pytorch.utils import (
-    state_dict_from_disk,
-    tensor_from_rgb_image,
-)
+from iglovikov_helper_functions.dl.pytorch.utils import state_dict_from_disk
 from iglovikov_helper_functions.utils.image_utils import pad_to_size, unpad_from_size
 from PIL import Image
+from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
@@ -26,10 +24,10 @@ from torchvision.ops import nms
 from tqdm import tqdm
 
 from retinaface.box_utils import decode, decode_landm
-from retinaface.utils import vis_annotations
+from retinaface.utils import tensor_from_rgb_image, vis_annotations
 
 
-def get_args():
+def get_args() -> Any:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg("-i", "--input_path", type=Path, help="Path with images.", required=True)
@@ -85,7 +83,7 @@ class InferenceDataset(Dataset):
         }
 
 
-def unnormalize(image):
+def unnormalize(image: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, torch.Tensor]:
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
 
@@ -98,21 +96,21 @@ def unnormalize(image):
 
 
 def process_predictions(
-    prediction,
-    original_shapes,
-    input_shape,
-    pads,
-    confidence_threshold,
-    nms_threshold,
-    prior_box,
-    variance,
-    keep_top_k,
-):
+    prediction: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    original_shapes: List[Tuple[int, int]],
+    input_shape: Tuple[int, int, int, int],
+    pads: Tuple[int, int, int, int],
+    confidence_threshold: float,
+    nms_threshold: float,
+    prior_box: torch.Tensor,
+    variance: Tuple[float, float],
+    keep_top_k: bool,
+) -> List[List[Dict[str, Union[float, List[float]]]]]:
     loc, conf, land = prediction
 
     conf = F.softmax(conf, dim=-1)
 
-    result: List[List[Dict[str, Union[List, float]]]] = []
+    result: List[List[Dict[str, Union[List[float], float]]]] = []
 
     batch_size, _, image_height, image_width = input_shape
 
@@ -183,7 +181,7 @@ def process_predictions(
     return result
 
 
-def main():
+def main() -> None:
     args = get_args()
     torch.distributed.init_process_group(backend="nccl")
 
@@ -248,7 +246,7 @@ def main():
     predict(dataloader, model, hparams, device)
 
 
-def predict(dataloader, model, hparams, device):
+def predict(dataloader: torch.utils.data.DataLoader, model: nn.Module, hparams: dict, device: torch.device) -> None:
     model.eval()
 
     if hparams["local_rank"] == 0:
