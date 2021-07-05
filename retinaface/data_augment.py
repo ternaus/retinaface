@@ -9,7 +9,8 @@ from retinaface.box_utils import matrix_iof
 def random_crop(
     image: np.ndarray, boxes: np.ndarray, labels: np.ndarray, landm: np.ndarray, img_dim: int
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, bool]:
-    """
+    """Crop random patch.
+
     if random.uniform(0, 1) <= 0.2:
         scale = 1.0
     else:
@@ -116,7 +117,7 @@ def _pad_to_square(image: np.ndarray, pad_image_flag: bool) -> np.ndarray:
 
 
 class Preproc:
-    def __init__(self, img_dim):
+    def __init__(self, img_dim: int) -> None:
         self.img_dim = img_dim
 
     def __call__(self, image: np.ndarray, targets: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:

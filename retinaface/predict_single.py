@@ -1,6 +1,5 @@
-"""
-There is a lot of post processing of the predictions.
-"""
+"""There is a lot of post processing of the predictions."""
+from collections import OrderedDict
 from typing import Dict, List, Union
 
 import albumentations as A
@@ -31,14 +30,14 @@ class Model:
         self.max_size = max_size
         self.variance = [0.1, 0.2]
 
-    def load_state_dict(self, state_dict: Dict[str, torch.Tensor]) -> None:
+    def load_state_dict(self, state_dict: OrderedDict) -> None:
         self.model.load_state_dict(state_dict)
 
-    def eval(self) -> None:
+    def eval(self) -> None:  # noqa: A003
         self.model.eval()
 
     def predict_jsons(
-        self, image: np.array, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
+        self, image: np.ndarray, confidence_threshold: float = 0.7, nms_threshold: float = 0.4
     ) -> List[Dict[str, Union[List, float]]]:
         with torch.no_grad():
             original_height, original_width = image.shape[:2]
@@ -89,17 +88,16 @@ class Model:
 
             landmarks = landmarks[keep]
 
-            scores = scores[keep].cpu().numpy()
+            scores = scores[keep].cpu().numpy().astype(float)
 
-            boxes = boxes.cpu().numpy()
-            landmarks = landmarks.cpu().numpy()
-            landmarks = landmarks.reshape([-1, 2])
+            boxes_np = boxes.cpu().numpy()
+            landmarks_np = landmarks.cpu().numpy()
             resize_coeff = original_height / transformed_height
 
             boxes *= resize_coeff
-            landmarks = landmarks.reshape(-1, 10) * resize_coeff
+            landmarks_np = landmarks_np.reshape(-1, 10) * resize_coeff
 
-            for box_id, bbox in enumerate(boxes):
+            for box_id, bbox in enumerate(boxes_np):
                 x_min, y_min, x_max, y_max = bbox
 
                 x_min = np.clip(x_min, 0, original_width - 1)
@@ -117,8 +115,8 @@ class Model:
                 annotations += [
                     {
                         "bbox": np.round(bbox.astype(float), ROUNDING_DIGITS).tolist(),
-                        "score": np.round(scores.astype(float), ROUNDING_DIGITS)[box_id],
-                        "landmarks": np.round(landmarks[box_id].astype(float), ROUNDING_DIGITS)
+                        "score": np.round(scores, ROUNDING_DIGITS)[box_id],
+                        "landmarks": np.round(landmarks_np[box_id].astype(float), ROUNDING_DIGITS)
                         .reshape(-1, 2)
                         .tolist(),
                     }

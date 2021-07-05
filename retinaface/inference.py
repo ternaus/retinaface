@@ -171,7 +171,7 @@ def process_predictions(
             annotations += [
                 {
                     "bbox": bbox.tolist(),
-                    "score": scores[crop_id],
+                    "score": float(scores[crop_id]),
                     "landmarks": landmarks[crop_id].reshape(-1, 2).tolist(),
                 }
             ]
@@ -185,7 +185,7 @@ def main() -> None:
     args = get_args()
     torch.distributed.init_process_group(backend="nccl")
 
-    with open(args.config_path) as f:
+    with args.config_path.open() as f:
         hparams = yaml.load(f, Loader=yaml.SafeLoader)
 
     hparams.update(
@@ -231,7 +231,7 @@ def main() -> None:
 
     dataset = InferenceDataset(file_paths, max_size=args.max_size, transform=from_dict(hparams["test_aug"]))
 
-    sampler = DistributedSampler(dataset, shuffle=False)
+    sampler: DistributedSampler = DistributedSampler(dataset, shuffle=False)
 
     dataloader = torch.utils.data.DataLoader(
         dataset,
@@ -305,7 +305,7 @@ def predict(dataloader: torch.utils.data.DataLoader, model: nn.Module, hparams: 
                 (hparams["output_label_path"] / folder_name).mkdir(exist_ok=True, parents=True)
                 result_path = hparams["output_label_path"] / folder_name / f"{file_id}.json"
 
-                with open(result_path, "w") as f:
+                with result_path.open("w") as f:
                     json.dump(predictions, f, indent=2)
 
                 if hparams["visualize"]:
@@ -320,7 +320,7 @@ def predict(dataloader: torch.utils.data.DataLoader, model: nn.Module, hparams: 
                         unpadded["image"].astype(np.uint8), (original_image_width, original_image_height)
                     )
 
-                    image = vis_annotations(image, annotations=annotations)
+                    image = vis_annotations(image, annotations=annotations)  # type: ignore
 
                     (hparams["output_vis_path"] / folder_name).mkdir(exist_ok=True, parents=True)
                     result_path = hparams["output_vis_path"] / folder_name / f"{file_id}.jpg"

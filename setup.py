@@ -1,9 +1,9 @@
-import io
 import os
 import re
 import sys
+from pathlib import Path
 from shutil import rmtree
-from typing import Tuple, List
+from typing import List, Tuple
 
 from setuptools import Command, find_packages, setup
 
@@ -14,18 +14,18 @@ url = "https://github.com/ternaus/retinaface"
 email = "iglovikov@gmail.com"
 author = "Vladimir Iglovikov"
 requires_python = ">=3.0.0"
-current_dir = os.path.abspath(os.path.dirname(__file__))
+current_dir = Path(__file__).absolute()
 
 
-def get_version():
-    version_file = os.path.join(current_dir, "retinaface", "__init__.py")
-    with io.open(version_file, encoding="utf-8") as f:
-        return re.search(r'^__version__ = [\'"]([^\'"]*)[\'"]', f.read(), re.M).group(1)
+def get_version() -> str:
+    version_file = current_dir / "retinaface" / "__init__.py"
+    with version_file.open(encoding="utf-8") as f:
+        return re.search(r'^__version__ = [\'"]([^\'"]*)[\'"]', f.read(), re.M).group(1)  # type: ignore
 
 
 # What packages are required for this module to be executed?
 try:
-    with open(os.path.join(current_dir, "requirements.txt"), encoding="utf-8") as f:
+    with (current_dir / "requirements.txt").open(encoding="utf-8") as f:
         required = f.read().split("\n")
 except FileNotFoundError:
     required = []
@@ -38,16 +38,16 @@ version = get_version()
 about = {"__version__": version}
 
 
-def get_test_requirements():
+def get_test_requirements() -> List[str]:
     requirements = ["pytest"]
     if sys.version_info < (3, 3):
         requirements.append("mock")
     return requirements
 
 
-def get_long_description():
-    base_dir = os.path.abspath(os.path.dirname(__file__))
-    with io.open(os.path.join(base_dir, "README.md"), encoding="utf-8") as f:
+def get_long_description() -> str:
+    base_dir = Path(__file__).absolute().parent
+    with (base_dir / "README.md").open(encoding="utf-8") as f:
         return f.read()
 
 
@@ -58,17 +58,17 @@ class UploadCommand(Command):
     user_options: List[Tuple] = []
 
     @staticmethod
-    def status(s):
+    def status(s: str) -> None:
         """Print things in bold."""
-        print(s)
+        print(s)  # noqa: T001
 
-    def initialize_options(self):
+    def initialize_options(self) -> None:
         pass
 
-    def finalize_options(self):
+    def finalize_options(self) -> None:
         pass
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.status("Removing previous builds...")
             rmtree(os.path.join(current_dir, "dist"))
@@ -82,7 +82,7 @@ class UploadCommand(Command):
         os.system("twine upload dist/*")
 
         self.status("Pushing git tags...")
-        os.system("git tag v{}".format(about["__version__"]))
+        os.system(f"git tag v{about['__version__']}")
         os.system("git push --tags")
 
         sys.exit()

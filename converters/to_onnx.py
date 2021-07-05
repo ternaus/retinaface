@@ -52,14 +52,6 @@ class M(nn.Module):
         self.confidence_threshold: float = 0.7
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-
-        Args:
-            x: Expects input (max_side x max_side)
-
-        Returns:
-
-        """
         loc, conf, land = self.model(x)
 
         conf = F.softmax(conf, dim=-1)
@@ -102,7 +94,7 @@ def main() -> None:
         "-m",
         "--max_size",
         type=int,
-        help="Size of the input image. " "The onnx model will predict on (max_size, max_size)",
+        help="Size of the input image. The onnx model will predict on (max_size, max_size)",
         required=True,
     )
 
@@ -139,7 +131,8 @@ def main() -> None:
     outputs = ort_session.run(None, {"input": np.expand_dims(np.transpose(image, (2, 0, 1)), 0)})
 
     for i in range(3):
-        assert np.allclose(out_torch[i].numpy(), outputs[i])
+        if not np.allclose(out_torch[i].numpy(), outputs[i]):
+            raise ValueError("torch and onnx models do not match!")
 
     annotations: List[Dict[str, List[Union[float, List[float]]]]] = []
 

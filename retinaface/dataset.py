@@ -28,7 +28,7 @@ class FaceDetectionDataset(data.Dataset):
         self.transform = transform
         self.rotate90 = rotate90
 
-        with open(label_path) as f:
+        with label_path.open() as f:
             labels = json.load(f)
 
         self.labels = [x for x in labels if (image_path / x["file_name"]).exists()]
@@ -125,8 +125,7 @@ def random_rotate_90(image: np.ndarray, annotations: np.ndarray) -> Tuple[np.nda
 
 
 def detection_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Custom collate fn for dealing with batches of images that have a different
-    number of associated object annotations (bounding boxes).
+    """Custom collate fn for dealing with batches of images that have a different number of boxes.
 
     Arguments:
         batch: (tuple) A tuple of tensor images and lists of annotations
