@@ -37,7 +37,7 @@ def get_args() -> Any:
     return parser.parse_args()
 
 
-class RetinaFace(pl.LightningModule):
+class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
     def __init__(self, config: Adict[str, Any]) -> None:
         super().__init__()
         self.config = config

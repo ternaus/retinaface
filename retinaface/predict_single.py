@@ -59,7 +59,7 @@ class Model:
 
             torched_image = tensor_from_rgb_image(transformed_image).to(self.device)
 
-            loc, conf, land = self.model(torched_image.unsqueeze(0))
+            loc, conf, land = self.model(torched_image.unsqueeze(0))  # pylint: disable=E1102
 
             conf = F.softmax(conf, dim=-1)
 
