@@ -2,7 +2,7 @@ import argparse
 import os
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 import pytorch_lightning as pl
@@ -13,7 +13,9 @@ from addict import Dict as Adict
 from albumentations.core.serialization import from_dict
 from iglovikov_helper_functions.config_parsing.utils import object_from_dict
 from iglovikov_helper_functions.metrics.map import recall_precision
+from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.loggers import WandbLogger
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchvision.ops import nms
 
@@ -27,21 +29,16 @@ VAL_IMAGE_PATH = Path(os.environ["VAL_IMAGE_PATH"])
 TRAIN_LABEL_PATH = Path(os.environ["TRAIN_LABEL_PATH"])
 VAL_LABEL_PATH = Path(os.environ["VAL_LABEL_PATH"])
 
-print("TRAIN_IMAGE_PATH = ", TRAIN_IMAGE_PATH)
-print("VAL_IMAGE_PATH = ", VAL_IMAGE_PATH)
-print("TRAIN_LABEL_PATH = ", TRAIN_LABEL_PATH)
-print("VAL_LABEL_PATH = ", VAL_LABEL_PATH)
 
-
-def get_args():
+def get_args() -> Any:
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg("-c", "--config_path", type=Path, help="Path to the config.", required=True)
     return parser.parse_args()
 
 
-class RetinaFace(pl.LightningModule):
-    def __init__(self, config):
+class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
+    def __init__(self, config: Adict[str, Any]) -> None:
         super().__init__()
         self.config = config
 
@@ -52,13 +49,13 @@ class RetinaFace(pl.LightningModule):
 
         self.loss = object_from_dict(self.config.loss, priors=self.prior_box)
 
-    def setup(self, state=0):  # pylint: disable=W0613
+    def setup(self, state=0) -> None:  # type: ignore
         self.preproc = Preproc(img_dim=self.config.image_size[0])
 
-    def forward(self, batch):
+    def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:  # type: ignore
         return self.model(batch)
 
-    def train_dataloader(self):
+    def train_dataloader(self) -> DataLoader:
         result = DataLoader(
             FaceDetectionDataset(
                 label_path=TRAIN_LABEL_PATH,
@@ -74,10 +71,9 @@ class RetinaFace(pl.LightningModule):
             drop_last=False,
             collate_fn=detection_collate,
         )
-        print("Len train dataloader = ", len(result))
         return result
 
-    def val_dataloader(self):
+    def val_dataloader(self) -> DataLoader:
         result = DataLoader(
             FaceDetectionDataset(
                 label_path=VAL_LABEL_PATH,
@@ -93,20 +89,21 @@ class RetinaFace(pl.LightningModule):
             drop_last=True,
             collate_fn=detection_collate,
         )
-        print("Len val dataloader = ", len(result))
         return result
 
-    def configure_optimizers(self):
+    def configure_optimizers(
+        self,
+    ) -> Tuple[Callable[[bool], Union[Optimizer, List[Optimizer], List[LightningOptimizer]]], List[Any]]:
         optimizer = object_from_dict(
             self.config.optimizer, params=[x for x in self.model.parameters() if x.requires_grad]
         )
 
         scheduler = object_from_dict(self.config.scheduler, optimizer=optimizer)
 
-        self.optimizers = [optimizer]
-        return self.optimizers, [scheduler]
+        self.optimizers = [optimizer]  # type: ignore
+        return self.optimizers, [scheduler]  # type: ignore
 
-    def training_step(self, batch, batch_idx):  # pylint: disable=W0613
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
         targets = batch["annotation"]
 
@@ -128,7 +125,7 @@ class RetinaFace(pl.LightningModule):
 
         return total_loss
 
-    def validation_step(self, batch, batch_idx):  # pylint: disable=W0613
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):  # type: ignore
         images = batch["image"]
 
         image_height = images.shape[2]
@@ -220,18 +217,18 @@ class RetinaFace(pl.LightningModule):
 
         _, _, average_precision = recall_precision(result_gt, result_predictions, 0.5)
 
-        self.log("epoch", self.trainer.current_epoch, on_step=False, on_epoch=True, logger=True)
+        self.log("epoch", self.trainer.current_epoch, on_step=False, on_epoch=True, logger=True)  # type: ignore
         self.log("val_loss", average_precision, on_step=False, on_epoch=True, logger=True)
 
     def _get_current_lr(self) -> torch.Tensor:  # type: ignore
-        lr = [x["lr"] for x in self.optimizers[0].param_groups][0]
+        lr = [x["lr"] for x in self.optimizers[0].param_groups][0]  # type: ignore
         return torch.from_numpy(np.array([lr]))[0].to(self.device)
 
 
-def main():
+def main() -> None:
     args = get_args()
 
-    with open(args.config_path) as f:
+    with args.config_path.open() as f:
         config = Adict(yaml.load(f, Loader=yaml.SafeLoader))
 
     pl.trainer.seed_everything(config.seed)

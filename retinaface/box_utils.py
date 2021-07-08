@@ -5,8 +5,9 @@ import torch
 
 
 def point_form(boxes: torch.Tensor) -> torch.Tensor:
-    """Convert prior_boxes to (x_min, y_min, x_max, y_max) representation for comparison
-    to point form ground truth data.
+    """Convert prior_boxes to (x_min, y_min, x_max, y_max) representation.
+
+    For comparison to point form ground truth data.
 
     Args:
         boxes: center-size default boxes from priorbox layers.
@@ -18,6 +19,7 @@ def point_form(boxes: torch.Tensor) -> torch.Tensor:
 
 def center_size(boxes: torch.Tensor) -> torch.Tensor:
     """Convert prior_boxes to (cx, cy, w, h) representation for comparison to center-size form ground truth data.
+
     Args:
         boxes: point_form boxes
     Return:
@@ -27,7 +29,8 @@ def center_size(boxes: torch.Tensor) -> torch.Tensor:
 
 
 def intersect(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
-    """We resize both tensors to [A,B,2] without new malloc:
+    """We resize both tensors to [A,B,2] without new malloc.
+
     [A, 2] -> [A, 1, 2] -> [A, B, 2]
     [B, 2] -> [1, B, 2] -> [A, B, 2]
     Then we compute the area of intersect between box_a and box_b.
@@ -37,17 +40,19 @@ def intersect(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
     Return:
       intersection area, Shape: [A, B].
     """
-    A = box_a.size(0)
-    B = box_b.size(0)
-    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2), box_b[:, 2:].unsqueeze(0).expand(A, B, 2))
-    min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(A, B, 2), box_b[:, :2].unsqueeze(0).expand(A, B, 2))
+    a = box_a.size(0)
+    b = box_b.size(0)
+    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(a, b, 2), box_b[:, 2:].unsqueeze(0).expand(a, b, 2))
+    min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(a, b, 2), box_b[:, :2].unsqueeze(0).expand(a, b, 2))
     inter = torch.clamp((max_xy - min_xy), min=0)
     return inter[:, :, 0] * inter[:, :, 1]
 
 
 def jaccard(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
-    """Compute the jaccard overlap of two sets of boxes. The jaccard overlap is simply the intersection over
-    union of two boxes.  Here we operate on ground truth boxes and default boxes.
+    """Computes the jaccard overlap of two sets of boxes.
+
+    The jaccard overlap is simply the intersection over union of two boxes.
+    Here we operate on ground truth boxes and default boxes.
     E.g.:
         A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
     Args:
@@ -64,9 +69,7 @@ def jaccard(box_a: torch.Tensor, box_b: torch.Tensor) -> torch.Tensor:
 
 
 def matrix_iof(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """
-    return iof of a and b, numpy version for data augmentation
-    """
+    """Returns iof of a and b, numpy version for data augmentation."""
     lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
     rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
 
@@ -87,8 +90,10 @@ def match(
     landmarks_t: torch.Tensor,
     batch_id: int,
 ) -> None:
-    """Match each prior box with the ground truth box of the highest jaccard overlap, encode the bounding
-    boxes, then return the matched indices corresponding to both confidence and location preds.
+    """Match each prior box with the ground truth box of the highest jaccard overlap.
+
+    Eencode the bounding boxes, then return the matched indices corresponding to both
+    confidence and location preds.
 
     Args:
         threshold: The overlap threshold used when matching boxes.
@@ -143,19 +148,19 @@ def match(
     landmarks_t[batch_id] = landmarks_gt
 
 
-def encode(matched, priors, variances):
-    """Encode the variances from the priorbox layers into the ground truth boxes
-    we have matched (based on jaccard overlap) with the prior boxes.
-    Args:
-        matched: (tensor) Coords of ground truth for each prior in point-form
-            Shape: [num_priors, 4].
-        priors: (tensor) Prior boxes in center-offset form
-            Shape: [num_priors,4].
-        variances: (list[float]) Variances of priorboxes
-    Return:
-        encoded boxes (tensor), Shape: [num_priors, 4]
-    """
+def encode(matched: torch.Tensor, priors: torch.Tensor, variances: List[float]) -> torch.Tensor:
+    """Encodes the variances from the priorbox layers into the ground truth boxes we have matched.
 
+     (based on jaccard overlap) with the prior boxes.
+    Args:
+        matched: Coords of ground truth for each prior in point-form
+            Shape: [num_priors, 4].
+        priors: Prior boxes in center-offset form
+            Shape: [num_priors,4].
+        variances: Variances of priorboxes
+    Return:
+        encoded boxes, Shape: [num_priors, 4]
+    """
     # dist b/t match center and prior's center
     g_cxcy = (matched[:, :2] + matched[:, 2:]) / 2 - priors[:, :2]
     # encode variance
@@ -170,7 +175,8 @@ def encode(matched, priors, variances):
 def encode_landm(
     matched: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
 ) -> torch.Tensor:
-    """Encode the variances from the priorbox layers into the ground truth boxes we have matched
+    """Encodes the variances from the priorbox layers into the ground truth boxes we have matched.
+
     (based on jaccard overlap) with the prior boxes.
     Args:
         matched: Coords of ground truth for each prior in point-form
@@ -181,7 +187,6 @@ def encode_landm(
     Return:
         encoded landmarks, Shape: [num_priors, 10]
     """
-
     # dist b/t match center and prior's center
     matched = torch.reshape(matched, (matched.size(0), 5, 2))
     priors_cx = priors[:, 0].unsqueeze(1).expand(matched.size(0), 5).unsqueeze(2)
@@ -200,7 +205,8 @@ def encode_landm(
 def decode(
     loc: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
 ) -> torch.Tensor:
-    """Decode locations from predictions using priors to undo the encoding we did for offset regression at train time.
+    """Decodes locations from predictions using priors to undo the encoding we did for offset regression at train time.
+
     Args:
         loc: location predictions for loc layers,
             Shape: [num_priors, 4]
@@ -225,7 +231,8 @@ def decode(
 def decode_landm(
     pre: torch.Tensor, priors: torch.Tensor, variances: Union[List[float], Tuple[float, float]]
 ) -> torch.Tensor:
-    """Decode landmarks from predictions using priors to undo the encoding we did for offset regression at train time.
+    """Decodes landmarks from predictions using priors to undo the encoding we did for offset regression at train time.
+
     Args:
         pre: landmark predictions for loc layers,
             Shape: [num_priors, 10]
@@ -248,8 +255,9 @@ def decode_landm(
 
 
 def log_sum_exp(x: torch.Tensor) -> torch.Tensor:
-    """Utility function for computing log_sum_exp while determining This will be used to determine unaveraged
-    confidence loss across all examples in a batch.
+    """Computes log_sum_exp.
+
+    This will be used to determine unaveraged confidence loss across all examples in a batch.
     Args:
         x: conf_preds from conf layers
     """

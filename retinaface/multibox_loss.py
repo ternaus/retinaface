@@ -4,11 +4,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from retinaface.box_utils import match, log_sum_exp
+from retinaface.box_utils import log_sum_exp, match
 
 
 class MultiBoxLoss(nn.Module):
-    """SSD Weighted Loss Function
+    """SSD Weighted Loss Function.
+
     Compute Targets:
         1) Produce Confidence Target Indices by matching  ground truth boxes
            with (default) 'priorboxes' that have jaccard index > threshold parameter.
@@ -56,7 +57,8 @@ class MultiBoxLoss(nn.Module):
     def forward(
         self, predictions: Tuple[torch.Tensor, torch.Tensor, torch.Tensor], targets: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Multibox Loss
+        """Multibox Loss.
+
         Args:
             predictions: A tuple containing locations predictions, confidence predictions,
             and prior boxes from SSD net.
@@ -67,7 +69,6 @@ class MultiBoxLoss(nn.Module):
             targets: Ground truth boxes and labels_gt for a batch,
                 shape: [batch_size, num_objs, 5] (last box_index is the label).
         """
-
         locations_data, confidence_data, landmark_data = predictions
 
         priors = self.priors.to(targets[0].device)
@@ -99,11 +100,10 @@ class MultiBoxLoss(nn.Module):
                 box_index,
             )
 
-        # landmark Loss (Smooth L1)
-        # Shape: [batch, num_priors, 10]
+        # landmark Loss (Smooth L1) Shape: [batch, num_priors, 10]
         positive_1 = conf_t > torch.zeros_like(conf_t)
         num_positive_landmarks = positive_1.long().sum(1, keepdim=True)
-        N1 = max(num_positive_landmarks.data.sum().float(), 1)
+        n1 = max(num_positive_landmarks.data.sum().float(), 1)  # type: ignore
         pos_idx1 = positive_1.unsqueeze(positive_1.dim()).expand_as(landmark_data)
         landmarks_p = landmark_data[pos_idx1].view(-1, 10)
         landmarks_t = landmarks_t[pos_idx1].view(-1, 10)
@@ -112,8 +112,7 @@ class MultiBoxLoss(nn.Module):
         positive = conf_t != torch.zeros_like(conf_t)
         conf_t[positive] = 1
 
-        # Localization Loss (Smooth L1)
-        # Shape: [batch, num_priors, 4]
+        # Localization Loss (Smooth L1) Shape: [batch, num_priors, 4]
         pos_idx = positive.unsqueeze(positive.dim()).expand_as(locations_data)
         loc_p = locations_data[pos_idx].view(-1, 4)
         boxes_t = boxes_t[pos_idx].view(-1, 4)
@@ -140,6 +139,6 @@ class MultiBoxLoss(nn.Module):
         loss_c = F.cross_entropy(conf_p, targets_weighted, reduction="sum")
 
         # Sum of losses: L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
-        N = max(num_pos.data.sum().float(), 1)
+        n = max(num_pos.data.sum().float(), 1)  # type: ignore
 
-        return loss_l / N, loss_c / N, loss_landm / N1
+        return loss_l / n, loss_c / n, loss_landm / n1

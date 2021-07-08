@@ -148,7 +148,12 @@ disable=print-statement,
         too-few-public-methods,
         attribute-defined-outside-init,
         too-many-locals,
-        too-many-arguments
+        too-many-arguments,
+        too-many-instance-attributes,
+        unused-argument,
+        no-member,
+        arguments-differ,
+        super-init-not-called
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
