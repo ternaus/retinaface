@@ -14,7 +14,7 @@ url = "https://github.com/ternaus/retinaface"
 email = "iglovikov@gmail.com"
 author = "Vladimir Iglovikov"
 requires_python = ">=3.0.0"
-current_dir = Path(__file__).absolute()
+current_dir = Path(__file__).absolute().parent
 
 
 def get_version() -> str:
