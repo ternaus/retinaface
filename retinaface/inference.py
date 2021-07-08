@@ -49,7 +49,9 @@ def get_args() -> Any:
 
 
 class InferenceDataset(Dataset):
-    def __init__(self, file_paths: List[Path], max_size: int, transform: albu.Compose) -> None:
+    def __init__(
+        self, file_paths: List[Path], max_size: int, transform: albu.Compose
+    ) -> None:  # pylint: disable=W0231
         self.file_paths = file_paths
         self.transform = transform
         self.max_size = max_size
