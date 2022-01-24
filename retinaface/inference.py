@@ -157,11 +157,7 @@ def process_predictions(
         landmarks = landmarks.cpu().numpy()[:keep_top_k, :]
         landmarks = landmarks.reshape([-1, 2])
 
-        if pads is None:
-            pads_numpy = np.array([0, 0, 0, 0])
-        else:
-            pads_numpy = pads[batch_id]
-
+        pads_numpy = np.array([0, 0, 0, 0]) if pads is None else pads[batch_id]
         unpadded = unpad_from_size(pads_numpy, bboxes=boxes, keypoints=landmarks)
 
         resize_coeff = max(original_shapes[batch_id]) / max(image_height, image_width)
@@ -251,11 +247,7 @@ def main() -> None:
 def predict(dataloader: torch.utils.data.DataLoader, model: nn.Module, hparams: dict, device: torch.device) -> None:
     model.eval()
 
-    if hparams["local_rank"] == 0:
-        loader = tqdm(dataloader)
-    else:
-        loader = dataloader
-
+    loader = tqdm(dataloader) if hparams["local_rank"] == 0 else dataloader
     with torch.no_grad():
         for batch in loader:
             torched_images = batch["torched_image"]  # images that are rescaled and padded
