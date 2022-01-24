@@ -90,9 +90,9 @@ def unnormalize(image: Union[np.ndarray, torch.Tensor]) -> Union[np.ndarray, tor
     std = [0.229, 0.224, 0.225]
 
     for c in range(image.shape[-1]):
-        image[:, :, c] *= std[c]
-        image[:, :, c] += mean[c]
-        image[:, :, c] *= 255
+        image[:, :, c] *= std[c]  # type: ignore
+        image[:, :, c] += mean[c]  # type: ignore
+        image[:, :, c] *= 255  # type: ignore
 
     return image
 
