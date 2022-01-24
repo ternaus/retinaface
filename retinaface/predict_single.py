@@ -94,7 +94,7 @@ class Model:
             landmarks_np = landmarks.cpu().numpy()
             resize_coeff = original_height / transformed_height
 
-            boxes *= resize_coeff
+            boxes_np *= resize_coeff
             landmarks_np = landmarks_np.reshape(-1, 10) * resize_coeff
 
             for box_id, bbox in enumerate(boxes_np):
