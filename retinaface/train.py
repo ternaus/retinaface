@@ -49,7 +49,7 @@ class RetinaFace(pl.LightningModule):  # pylint: disable=R0901
 
         self.loss = object_from_dict(self.config.loss, priors=self.prior_box)
 
-    def setup(self, state=0) -> None:  # type: ignore
+    def setup(self, stage=0) -> None:  # type: ignore
         self.preproc = Preproc(img_dim=self.config.image_size[0])
 
     def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:  # type: ignore
