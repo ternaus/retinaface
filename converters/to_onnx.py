@@ -142,16 +142,15 @@ def main() -> None:
         if not np.allclose(out_torch[i].numpy(), outputs[i]):
             raise ValueError("torch and onnx models do not match!")
 
-    annotations: List[Dict[str, List[Union[float, List[float]]]]] = []
+    annotations: List[Dict[str, List[Union[float, List[float]]]]] = [
+        {
+            "bbox": box.tolist(),
+            "score": outputs[1][box_id],
+            "landmarks": outputs[2][box_id].reshape(-1, 2).tolist(),
+        }
+        for box_id, box in enumerate(outputs[0])
+    ]
 
-    for box_id, box in enumerate(outputs[0]):
-        annotations += [
-            {
-                "bbox": box.tolist(),
-                "score": outputs[1][box_id],
-                "landmarks": outputs[2][box_id].reshape(-1, 2).tolist(),
-            }
-        ]
 
     im = albu.Compose([albu.LongestMaxSize(max_size=args.max_size)])(image=raw_image)["image"]
     cv2.imwrite("example.jpg", vis_annotations(im, annotations))
